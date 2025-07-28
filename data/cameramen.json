@@ -1,0 +1,131 @@
+[
+  {
+    "id": "cam_1753420125100",
+    "user_id": "1753420125100",
+    "bio": "kdnfksvk;nvk;svj;",
+    "equipment": "cjsscslsc",
+    "experience_years": 3,
+    "hourly_rate": 1234,
+    "specialties": [
+      "Portrait",
+      "Wedding",
+      "Fashion"
+    ],
+    "languages": [
+      "Italian",
+      "Japanese"
+    ],
+    "availability": [
+      "Evenings"
+    ],
+    "location": "India",
+    "coordinates": [
+      40.7128,
+      -74.006
+    ],
+    "current_location": [
+      40.7128,
+      -74.006
+    ],
+    "is_available": true,
+    "is_verified": true,
+    "rating": 4.9,
+    "total_reviews": 28,
+    "awards": "dadsdv",
+    "celebrity_clients": "Zcvfs",
+    "cameraman_type": "elite",
+    "portfolio": [
+      "https://images.unsplash.com/photo-1537633552985-df8429e8048b?q=80&w=2000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1600618528240-fb9fc964b853?q=80&w=2000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=2000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1583939003579-730e3918a45a?q=80&w=2000&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1606216794074-735e91aa2c92?q=80&w=2000&auto=format&fit=crop"
+    ],
+    "upcoming_events": [
+      {
+        "id": "event_1",
+        "title": "Sarah & Michael's Wedding",
+        "date": "2025-07-15",
+        "location": "Grand Ballroom, Plaza Hotel",
+        "type": "Wedding",
+        "time": "2:00 PM",
+        "duration": "8 hours",
+        "payment": "$2,500",
+        "status": "confirmed"
+      },
+      {
+        "id": "event_2",
+        "title": "Tech Company Headshots",
+        "date": "2025-07-22",
+        "location": "Corporate Office, Manhattan",
+        "type": "Corporate",
+        "time": "9:00 AM",
+        "duration": "6 hours",
+        "payment": "$1,800",
+        "status": "confirmed"
+      },
+      {
+        "id": "event_3",
+        "title": "Fashion Brand Photoshoot",
+        "date": "2025-07-28",
+        "location": "Studio Downtown",
+        "type": "Fashion",
+        "time": "11:00 AM",
+        "duration": "4 hours",
+        "payment": "$1,200",
+        "status": "pending"
+      }
+    ],
+    "recent_reviews": [
+      {
+        "id": "review_1",
+        "name": "Jennifer Martinez",
+        "rating": 5,
+        "comment": "Absolutely incredible work! The wedding photos exceeded all our expectations. Professional, creative, and captured every precious moment perfectly.",
+        "date": "2025-06-18",
+        "avatar": "https://images.unsplash.com/photo-1494790108755-2616b612b786?q=80&w=100&auto=format&fit=crop",
+        "event_type": "Wedding"
+      },
+      {
+        "id": "review_2",
+        "name": "Robert Chen",
+        "rating": 5,
+        "comment": "Outstanding photographer! The corporate headshots turned out amazing and the whole team was impressed with the professionalism.",
+        "date": "2025-06-12",
+        "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&auto=format&fit=crop",
+        "event_type": "Corporate"
+      },
+      {
+        "id": "review_3",
+        "name": "Amanda Thompson",
+        "rating": 5,
+        "comment": "Beautiful family portraits! Great with kids and made the whole session fun and relaxed. Highly recommend!",
+        "date": "2025-06-08",
+        "avatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=100&auto=format&fit=crop",
+        "event_type": "Portrait"
+      },
+      {
+        "id": "review_4",
+        "name": "David Wilson",
+        "rating": 4,
+        "comment": "Great photographer with excellent attention to detail. The event photos came out fantastic!",
+        "date": "2025-06-02",
+        "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop",
+        "event_type": "Event"
+      }
+    ],
+    "earnings": {
+      "total": 32750,
+      "thisMonth": 5500,
+      "lastMonth": 4200
+    },
+    "stats": {
+      "totalBookings": 45,
+      "completedEvents": 42,
+      "cancelledEvents": 2,
+      "averageRating": 4.9
+    },
+    "created_at": "2025-07-25T05:08:45.101Z"
+  }
+]

@@ -1,0 +1,1211 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import Image from "next/image"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  Mail,
+  Phone,
+  MapPin,
+  DollarSign,
+  Star,
+  Calendar,
+  ChevronRight,
+  ChevronLeft,
+  Edit2,
+  Plus,
+  Clock,
+  Upload,
+  Trash2,
+  Eye,
+  Settings,
+} from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Slider } from "@/components/ui/slider"
+import { toast } from "@/components/ui/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
+
+// Sample editor data
+const mockEditorData = {
+  type: "both",
+  name: "Alex Morgan",
+  email: "alex@example.com",
+  phone: "+1 (555) 123-4567",
+  location: "New York, NY",
+  experience: "6-10",
+  specialties: ["Portrait Retouching", "Wedding Editing", "Color Grading", "Video Editing"],
+  software: ["Adobe Photoshop", "Adobe Lightroom", "Adobe Premiere Pro", "DaVinci Resolve"],
+  bio: "Professional photo and video editor with over 8 years of experience specializing in portrait retouching, wedding editing, and cinematic color grading. I've worked with major brands and photographers to deliver stunning visuals that exceed expectations.",
+  languages: ["English", "Spanish"],
+  turnaround: "24-48 hours",
+  sampleRate: "20",
+  fullServiceRate: "75-200",
+  rating: 4.8,
+  reviews: 93,
+  portfolio: [
+    "https://images.unsplash.com/photo-1610901157620-340856d0a50f?q=80&w=2070",
+    "https://images.unsplash.com/photo-1604017011826-d3b4c23f8914?q=80&w=2070",
+    "https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=2106",
+    "https://images.unsplash.com/photo-1605379399843-5870eea9b74e?q=80&w=2106",
+    "https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=2106",
+    "https://images.unsplash.com/photo-1581456495146-65a71b2c8e52?q=80&w=2272",
+  ],
+  beforeAfterSamples: [
+    {
+      id: 1,
+      before: "https://images.unsplash.com/photo-1600275669439-14e40452d20b?q=80&w=2187",
+      after: "https://images.unsplash.com/photo-1623091410901-00e2d268ee37?q=80&w=2070",
+      description: "Wedding photo color enhancement and skin retouching",
+      type: "photo",
+    },
+    {
+      id: 2,
+      before: "https://images.unsplash.com/photo-1581456495146-65a71b2c8e52?q=80&w=2272",
+      after: "https://images.unsplash.com/photo-1618721405821-80ebc4b63d26?q=80&w=2070",
+      description: "Portrait enhancement with background blur adjustment",
+      type: "photo",
+    },
+    {
+      id: 3,
+      before: "https://images.unsplash.com/photo-1583394838336-acd977736f90?q=80&w=2068",
+      after: "https://images.unsplash.com/photo-1560393464-5c69a73c5770?q=80&w=2068",
+      description: "Product photo with background removal and shadow enhancement",
+      type: "photo",
+    },
+  ],
+  upcomingProjects: [
+    {
+      id: 1,
+      title: "Wedding Photo Collection",
+      deadline: "2023-08-15",
+      client: "Sarah & Michael",
+      status: "In Progress",
+    },
+    {
+      id: 2,
+      title: "Product Catalog Retouching",
+      deadline: "2023-09-01",
+      client: "TechGadgets Inc.",
+      status: "Pending",
+    },
+    { id: 3, title: "Family Portrait Session", deadline: "2023-09-10", client: "Smith Family", status: "Scheduled" },
+  ],
+  recentReviews: [
+    {
+      id: 1,
+      name: "Sarah Wilson",
+      rating: 5,
+      comment:
+        "Alex did an amazing job with our wedding photos! The colors are vibrant and the retouching is so natural.",
+      date: "2023-07-15",
+      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787",
+    },
+    {
+      id: 2,
+      name: "Michael Brown",
+      rating: 5,
+      comment: "Incredible attention to detail and very easy to work with. The video editing was top-notch!",
+      date: "2023-07-01",
+      avatar: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=1287",
+    },
+  ],
+  earnings: {
+    total: 45000,
+    thisMonth: 3800,
+    lastMonth: 3200,
+  },
+  stats: {
+    totalProjects: 87,
+    completedProjects: 82,
+    cancelledProjects: 5,
+    averageRating: 4.8,
+  },
+  isAvailable: true,
+}
+
+const editorSpecialties = [
+  "Portrait Retouching",
+  "Wedding Editing",
+  "Color Grading",
+  "Video Editing",
+  "Product Editing",
+  "Real Estate Editing",
+]
+
+const editorSoftware = [
+  "Adobe Photoshop",
+  "Adobe Lightroom",
+  "Adobe Premiere Pro",
+  "DaVinci Resolve",
+  "Capture One",
+  "Final Cut Pro",
+]
+
+const languages = ["English", "Spanish", "French", "German", "Italian", "Chinese"]
+
+// Before-After Slider Component
+const BeforeAfterSlider = ({ before, after, description }) => {
+  const [position, setPosition] = useState(50)
+
+  return (
+    <div className="relative h-[300px] w-full overflow-hidden rounded-lg">
+      <div className="absolute inset-0">
+        <Image
+          src={after || "/placeholder.svg"}
+          alt="After editing"
+          fill
+          className="object-cover"
+          onError={(e) => {
+            e.currentTarget.src = "/placeholder.svg?height=300&width=500"
+          }}
+        />
+      </div>
+      <div className="absolute inset-0" style={{ width: `${position}%`, overflow: "hidden" }}>
+        <Image
+          src={before || "/placeholder.svg"}
+          alt="Before editing"
+          fill
+          className="object-cover"
+          onError={(e) => {
+            e.currentTarget.src = "/placeholder.svg?height=300&width=500"
+          }}
+        />
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="absolute h-full w-1 bg-white" style={{ left: `${position}%` }} />
+        <div
+          className="absolute h-8 w-8 rounded-full bg-white shadow-lg flex items-center justify-center"
+          style={{ left: `${position}%`, transform: "translateX(-50%)" }}
+        >
+          <ChevronRight className="h-4 w-4 -rotate-90" />
+          <ChevronRight className="h-4 w-4 rotate-90" />
+        </div>
+      </div>
+      <div className="absolute bottom-4 left-0 right-0 px-4">
+        <Slider
+          value={[position]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={(value) => setPosition(value[0])}
+          className="z-10"
+        />
+      </div>
+      <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">Before</div>
+      <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">After</div>
+      {description && (
+        <div className="absolute bottom-12 left-0 right-0 text-center">
+          <div className="bg-black/50 text-white text-sm px-3 py-1 rounded-full mx-auto inline-block">
+            {description}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function EditorDashboard() {
+  const [data, setData] = useState(null)
+  const [currentPortfolioIndex, setCurrentPortfolioIndex] = useState(0)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editData, setEditData] = useState({})
+  const [activeTab, setActiveTab] = useState("overview")
+  const [isUploading, setIsUploading] = useState(false)
+  const [newSample, setNewSample] = useState({
+    before: null,
+    after: null,
+    description: "",
+    type: "photo",
+  })
+
+  useEffect(() => {
+    // In a real application, you would fetch this data from an API
+    // For now, we'll use the mock data or try to get from localStorage
+    const storedData = localStorage.getItem("editor_data")
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData)
+        // Merge with mock data to ensure all fields exist
+        setData({ ...mockEditorData, ...parsedData })
+      } catch (e) {
+        console.error("Error parsing stored data:", e)
+        setData(mockEditorData)
+      }
+    } else {
+      setData(mockEditorData)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (data) {
+      setEditData({ ...data })
+    }
+  }, [data])
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-lg">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const handleSaveProfile = () => {
+    setData({ ...editData })
+    localStorage.setItem("editor_data", JSON.stringify(editData))
+    setIsEditing(false)
+    toast({
+      title: "Profile Updated",
+      description: "Your profile has been successfully updated.",
+    })
+  }
+
+  const handleInputChange = (field, value) => {
+    setEditData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleArrayInputChange = (field, value, isChecked, isMultiple = true) => {
+    setEditData((prev) => {
+      if (isMultiple) {
+        if (isChecked) {
+          return {
+            ...prev,
+            [field]: [...prev[field], value],
+          }
+        } else {
+          return {
+            ...prev,
+            [field]: prev[field].filter((item) => item !== value),
+          }
+        }
+      } else {
+        return {
+          ...prev,
+          [field]: value,
+        }
+      }
+    })
+  }
+
+  const handleNewSampleChange = (field, value) => {
+    setNewSample((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleAddSample = () => {
+    if (!newSample.before || !newSample.after || !newSample.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide both before and after images and a description.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const newId = Math.max(0, ...data.beforeAfterSamples.map((s) => s.id)) + 1
+
+    // In a real app, you would upload the files to a server
+    // For this demo, we'll create object URLs
+    const beforeUrl = URL.createObjectURL(newSample.before)
+    const afterUrl = URL.createObjectURL(newSample.after)
+
+    const newSampleWithUrls = {
+      ...newSample,
+      id: newId,
+      before: beforeUrl,
+      after: afterUrl,
+    }
+
+    setData((prev) => ({
+      ...prev,
+      beforeAfterSamples: [...prev.beforeAfterSamples, newSampleWithUrls],
+    }))
+
+    // Update localStorage
+    const updatedData = {
+      ...data,
+      beforeAfterSamples: [...data.beforeAfterSamples, newSampleWithUrls],
+    }
+    localStorage.setItem("editor_data", JSON.stringify(updatedData))
+
+    setNewSample({
+      before: null,
+      after: null,
+      description: "",
+      type: "photo",
+    })
+
+    toast({
+      title: "Sample Added",
+      description: "Your before/after sample has been added to your portfolio.",
+    })
+  }
+
+  const handleDeleteSample = (id) => {
+    setData((prev) => ({
+      ...prev,
+      beforeAfterSamples: prev.beforeAfterSamples.filter((sample) => sample.id !== id),
+    }))
+
+    // Update localStorage
+    const updatedData = {
+      ...data,
+      beforeAfterSamples: data.beforeAfterSamples.filter((sample) => sample.id !== id),
+    }
+    localStorage.setItem("editor_data", JSON.stringify(updatedData))
+
+    toast({
+      title: "Sample Deleted",
+      description: "The before/after sample has been removed from your portfolio.",
+    })
+  }
+
+  const handleUploadPortfolio = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    setIsUploading(true)
+
+    // In a real app, you would upload the files to a server
+    // For this demo, we'll create object URLs
+    const newUrls = files.map((file) => URL.createObjectURL(file))
+
+    setTimeout(() => {
+      setData((prev) => ({
+        ...prev,
+        portfolio: [...prev.portfolio, ...newUrls],
+      }))
+
+      // Update localStorage
+      const updatedData = {
+        ...data,
+        portfolio: [...data.portfolio, ...newUrls],
+      }
+      localStorage.setItem("editor_data", JSON.stringify(updatedData))
+
+      setIsUploading(false)
+
+      toast({
+        title: "Upload Complete",
+        description: `Successfully added ${files.length} image(s) to your portfolio.`,
+      })
+    }, 1500) // Simulate upload delay
+  }
+
+  const handleDeletePortfolioImage = (index) => {
+    setData((prev) => ({
+      ...prev,
+      portfolio: prev.portfolio.filter((_, i) => i !== index),
+    }))
+
+    // Update localStorage
+    const updatedData = {
+      ...data,
+      portfolio: data.portfolio.filter((_, i) => i !== index),
+    }
+    localStorage.setItem("editor_data", JSON.stringify(updatedData))
+
+    toast({
+      title: "Image Deleted",
+      description: "The image has been removed from your portfolio.",
+    })
+  }
+
+  const nextPortfolioImage = () => {
+    setCurrentPortfolioIndex((prev) => (prev + 1) % data.portfolio.length)
+  }
+
+  const prevPortfolioImage = () => {
+    setCurrentPortfolioIndex((prev) => (prev - 1 + data.portfolio.length) % data.portfolio.length)
+  }
+
+  const toggleAvailability = () => {
+    const newAvailability = !data.isAvailable
+    setData((prev) => ({
+      ...prev,
+      isAvailable: newAvailability,
+    }))
+
+    // Update localStorage
+    const updatedData = {
+      ...data,
+      isAvailable: newAvailability,
+    }
+    localStorage.setItem("editor_data", JSON.stringify(updatedData))
+
+    toast({
+      title: newAvailability ? "You're Now Available" : "You're Now Unavailable",
+      description: newAvailability
+        ? "Clients can now see your profile and request your services."
+        : "Your profile is now hidden from new client requests.",
+    })
+  }
+
+  return (
+    <div className="container mx-auto p-4 space-y-6 pb-16">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6"
+      >
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <h1 className="text-3xl font-bold">Editor Dashboard</h1>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Availability:</span>
+              <Switch
+                checked={data.isAvailable}
+                onCheckedChange={toggleAvailability}
+                className="data-[state=checked]:bg-green-500"
+              />
+              <span className={`text-sm ${data.isAvailable ? "text-green-600" : "text-gray-500"}`}>
+                {data.isAvailable ? "Available" : "Unavailable"}
+              </span>
+            </div>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+          </div>
+        </div>
+
+        {/* Profile Overview */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              <Avatar className="w-32 h-32">
+                <AvatarImage
+                  src="https://images.unsplash.com/photo-1568602471122-7832951cc4c5?q=80&w=2070"
+                  alt={data.name}
+                />
+                <AvatarFallback>{data.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-grow space-y-4">
+                <div>
+                  <h2 className="text-2xl font-semibold">{data.name}</h2>
+                  <p className="text-gray-500">
+                    {data.type === "both"
+                      ? "Photo & Video Editor"
+                      : data.type === "photo"
+                        ? "Photo Editor"
+                        : "Video Editor"}
+                  </p>
+                </div>
+                <p className="text-gray-700">{data.bio}</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.specialties.map((specialty) => (
+                    <Badge key={specialty} variant="secondary">
+                      {specialty}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="flex items-center">
+                    <Mail className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>{data.email}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Phone className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>{data.phone}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>{data.location}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <DollarSign className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>
+                      ${data.sampleRate} - ${data.fullServiceRate.split("-")[1]}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${data.earnings.total.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">
+                +${(data.earnings.thisMonth - data.earnings.lastMonth).toLocaleString()} from last month
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{data.stats.totalProjects}</div>
+              <p className="text-xs text-muted-foreground">
+                {data.stats.completedProjects} completed, {data.stats.cancelledProjects} cancelled
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+              <Star className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{data.stats.averageRating.toFixed(1)}</div>
+              <div className="flex">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`h-4 w-4 ${
+                      i < Math.floor(data.stats.averageRating) ? "text-yellow-400 fill-current" : "text-gray-300"
+                    }`}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Turnaround Time</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{data.turnaround}</div>
+              <p className="text-xs text-muted-foreground">Average delivery time</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Tabs */}
+        <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+            <TabsTrigger value="samples">Before & After</TabsTrigger>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="profile">Edit Profile</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl">Upcoming Projects</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.upcomingProjects.length > 0 ? (
+                    <div className="space-y-4">
+                      {data.upcomingProjects.map((project) => (
+                        <div key={project.id} className="flex justify-between items-center border-b pb-3">
+                          <div>
+                            <h4 className="font-semibold">{project.title}</h4>
+                            <p className="text-sm text-gray-500">Client: {project.client}</p>
+                            <p className="text-sm text-gray-500">Due: {project.deadline}</p>
+                          </div>
+                          <Badge
+                            className={
+                              project.status === "In Progress"
+                                ? "bg-blue-100 text-blue-800"
+                                : project.status === "Pending"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-green-100 text-green-800"
+                            }
+                          >
+                            {project.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-6">No upcoming projects</p>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" variant="outline">
+                    View All Projects
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-xl">Recent Reviews</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.recentReviews.length > 0 ? (
+                    <div className="space-y-4">
+                      {data.recentReviews.map((review) => (
+                        <div key={review.id} className="border-b pb-3">
+                          <div className="flex items-center mb-2">
+                            <Avatar className="w-8 h-8 mr-2">
+                              <AvatarImage src={review.avatar} alt={review.name} />
+                              <AvatarFallback>{review.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h4 className="font-semibold text-sm">{review.name}</h4>
+                              <div className="flex">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-3 w-3 ${
+                                      i < review.rating ? "text-yellow-400 fill-current" : "text-gray-300"
+                                    }`}
+                                  />
+                                ))}
+                                <span className="text-xs text-gray-500 ml-1">{review.date}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700">{review.comment}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-6">No reviews yet</p>
+                  )}
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" variant="outline">
+                    View All Reviews
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Featured Portfolio</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <div className="aspect-video relative overflow-hidden rounded-lg">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentPortfolioIndex}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="w-full h-full"
+                      >
+                        <Image
+                          src={data.portfolio[currentPortfolioIndex] || "/placeholder.svg"}
+                          alt={`Portfolio ${currentPortfolioIndex + 1}`}
+                          fill
+                          className="object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder.svg?height=600&width=800"
+                          }}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="absolute top-1/2 left-4 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                    onClick={prevPortfolioImage}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="absolute top-1/2 right-4 transform -translate-y-1/2 bg-white/80 hover:bg-white"
+                    onClick={nextPortfolioImage}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-2 py-1 rounded text-sm">
+                    {currentPortfolioIndex + 1} / {data.portfolio.length}
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" onClick={() => setActiveTab("portfolio")}>
+                  Manage Portfolio
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="portfolio" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Your Portfolio</CardTitle>
+                <CardDescription>
+                  Manage the images that appear in your public portfolio. These images will be visible to potential
+                  clients.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-6">
+                  <label
+                    htmlFor="portfolio-upload"
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                      <p className="text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">PNG, JPG, WEBP (MAX. 5MB)</p>
+                    </div>
+                    <input
+                      id="portfolio-upload"
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept="image/*"
+                      onChange={handleUploadPortfolio}
+                      disabled={isUploading}
+                    />
+                  </label>
+                  {isUploading && (
+                    <div className="mt-2">
+                      <Progress value={45} className="h-2" />
+                      <p className="text-xs text-center mt-1 text-gray-500">Uploading...</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {data.portfolio.map((image, index) => (
+                    <div key={index} className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden">
+                        <Image
+                          src={image || "/placeholder.svg"}
+                          alt={`Portfolio ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = "/placeholder.svg?height=300&width=300"
+                          }}
+                        />
+                      </div>
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 bg-white text-gray-700 hover:bg-gray-200"
+                          onClick={() => setCurrentPortfolioIndex(index)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 bg-white text-red-600 hover:bg-red-100 hover:text-red-700"
+                          onClick={() => handleDeletePortfolioImage(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="samples" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Before & After Samples</CardTitle>
+                <CardDescription>
+                  Showcase your editing skills with before and after comparisons. These samples help clients understand
+                  your style and capabilities.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-medium mb-4">Add New Before & After Sample</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <Label htmlFor="before-image" className="block mb-2">
+                        Before Image
+                      </Label>
+                      <label
+                        htmlFor="before-image"
+                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                      >
+                        <div className="flex flex-col items-center justify-center p-3">
+                          <Upload className="w-6 h-6 mb-2 text-gray-500" />
+                          <p className="text-sm text-gray-500">Upload "Before" image</p>
+                        </div>
+                        <input
+                          id="before-image"
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => handleNewSampleChange("before", e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      {newSample.before && (
+                        <p className="text-xs text-gray-600 mt-1 truncate">{newSample.before.name}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="after-image" className="block mb-2">
+                        After Image
+                      </Label>
+                      <label
+                        htmlFor="after-image"
+                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                      >
+                        <div className="flex flex-col items-center justify-center p-3">
+                          <Upload className="w-6 h-6 mb-2 text-gray-500" />
+                          <p className="text-sm text-gray-500">Upload "After" image</p>
+                        </div>
+                        <input
+                          id="after-image"
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={(e) => handleNewSampleChange("after", e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      {newSample.after && <p className="text-xs text-gray-600 mt-1 truncate">{newSample.after.name}</p>}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="sample-description">Description</Label>
+                      <Input
+                        id="sample-description"
+                        value={newSample.description}
+                        onChange={(e) => handleNewSampleChange("description", e.target.value)}
+                        placeholder="Describe the edits you made"
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="sample-type">Sample Type</Label>
+                      <Select value={newSample.type} onValueChange={(value) => handleNewSampleChange("type", value)}>
+                        <SelectTrigger id="sample-type">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="photo">Photo</SelectItem>
+                          <SelectItem value="video">Video</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button onClick={handleAddSample} className="w-full">
+                      Add Sample
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {data.beforeAfterSamples.map((sample) => (
+                    <div key={sample.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-medium">{sample.description}</h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:bg-red-50"
+                          onClick={() => handleDeleteSample(sample.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                      <BeforeAfterSlider before={sample.before} after={sample.after} description={sample.description} />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="projects" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Project Management</CardTitle>
+                <CardDescription>Track and manage your current and upcoming editing projects.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-medium">Current Projects</h3>
+                    <Button variant="outline" size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Project
+                    </Button>
+                  </div>
+
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Project
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Client
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Deadline
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {data.upcomingProjects.map((project) => (
+                          <tr key={project.id}>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{project.title}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{project.client}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500">{project.deadline}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Badge
+                                className={
+                                  project.status === "In Progress"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : project.status === "Pending"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-green-100 text-green-800"
+                                }
+                              >
+                                {project.status}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <div className="flex space-x-2">
+                                <Button variant="ghost" size="sm">
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-red-600">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="profile" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Edit Profile</CardTitle>
+                <CardDescription>Update your personal information, skills, and preferences.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Personal Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-name">Full Name</Label>
+                        <Input
+                          id="edit-name"
+                          value={editData.name}
+                          onChange={(e) => handleInputChange("name", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-email">Email</Label>
+                        <Input
+                          id="edit-email"
+                          type="email"
+                          value={editData.email}
+                          onChange={(e) => handleInputChange("email", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-phone">Phone</Label>
+                        <Input
+                          id="edit-phone"
+                          value={editData.phone}
+                          onChange={(e) => handleInputChange("phone", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-location">Location</Label>
+                        <Input
+                          id="edit-location"
+                          value={editData.location}
+                          onChange={(e) => handleInputChange("location", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Professional Details</h3>
+                    <div>
+                      <Label htmlFor="edit-bio">Bio</Label>
+                      <Textarea
+                        id="edit-bio"
+                        value={editData.bio}
+                        onChange={(e) => handleInputChange("bio", e.target.value)}
+                        rows={4}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-experience">Experience</Label>
+                        <Select
+                          value={editData.experience}
+                          onValueChange={(value) => handleInputChange("experience", value)}
+                        >
+                          <SelectTrigger id="edit-experience">
+                            <SelectValue placeholder="Select experience" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0-2">0-2 years</SelectItem>
+                            <SelectItem value="3-5">3-5 years</SelectItem>
+                            <SelectItem value="6-10">6-10 years</SelectItem>
+                            <SelectItem value="10+">10+ years</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-turnaround">Turnaround Time</Label>
+                        <Select
+                          value={editData.turnaround}
+                          onValueChange={(value) => handleInputChange("turnaround", value)}
+                        >
+                          <SelectTrigger id="edit-turnaround">
+                            <SelectValue placeholder="Select turnaround time" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="24 hours">24 hours</SelectItem>
+                            <SelectItem value="24-48 hours">24-48 hours</SelectItem>
+                            <SelectItem value="2-3 days">2-3 days</SelectItem>
+                            <SelectItem value="3-5 days">3-5 days</SelectItem>
+                            <SelectItem value="5-7 days">5-7 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-sample-rate">Sample Rate ($)</Label>
+                        <Input
+                          id="edit-sample-rate"
+                          type="number"
+                          value={editData.sampleRate}
+                          onChange={(e) => handleInputChange("sampleRate", e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-full-rate">Full Service Rate Range ($)</Label>
+                        <Input
+                          id="edit-full-rate"
+                          value={editData.fullServiceRate}
+                          onChange={(e) => handleInputChange("fullServiceRate", e.target.value)}
+                          placeholder="e.g. 75-150"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Specialties & Skills</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {editorSpecialties.map((specialty) => (
+                        <div key={specialty} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`specialty-${specialty}`}
+                            checked={editData.specialties?.includes(specialty)}
+                            onCheckedChange={(checked) => handleArrayInputChange("specialties", specialty, checked)}
+                          />
+                          <Label htmlFor={`specialty-${specialty}`}>{specialty}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Software Skills</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {editorSoftware.map((software) => (
+                        <div key={software} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`software-${software}`}
+                            checked={editData.software?.includes(software)}
+                            onCheckedChange={(checked) => handleArrayInputChange("software", software, checked)}
+                          />
+                          <Label htmlFor={`software-${software}`}>{software}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Languages</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {languages.map((language) => (
+                        <div key={language} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`language-${language}`}
+                            checked={editData.languages?.includes(language)}
+                            onCheckedChange={(checked) => handleArrayInputChange("languages", language, checked)}
+                          />
+                          <Label htmlFor={`language-${language}`}>{language}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </form>
+              </CardContent>
+              <CardFooter>
+                <div className="flex justify-end gap-4 w-full">
+                  <Button variant="outline" onClick={() => setEditData({ ...data })}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveProfile}>Save Changes</Button>
+                </div>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
+    </div>
+  )
+}
