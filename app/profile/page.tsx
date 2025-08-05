@@ -73,19 +73,30 @@ export default function ProfilePage() {
 
       // Try to get additional profile data from API
       try {
-        const response = await fetch(`/api/profile`)
+        const response = await fetch(`/api/users/${userData.id}`)
         if (response.ok) {
           const result = await response.json()
-          if (result.success && result.user) {
-            setUser(result.user)
-            setFormData({
-              full_name: result.user.full_name || "",
-              phone_number: result.user.phone_number || "",
-              bio: result.user.bio || "",
-              location: result.user.location || "",
+          if (result.success && result.data) {
+            const userProfile = result.data
+            setUser({
+              id: userProfile.id,
+              email: userProfile.email,
+              full_name: userProfile.full_name || "",
+              phone_number: userProfile.phone_number || "",
+              user_type: userProfile.user_type || "client",
+              is_verified: userProfile.is_verified || false,
+              avatar: userProfile.profile_image_url,
+              bio: userProfile.bio || "",
+              location: userProfile.location || "",
             })
-            if (result.user.avatar) {
-              setPreviewUrl(result.user.avatar)
+            setFormData({
+              full_name: userProfile.full_name || "",
+              phone_number: userProfile.phone_number || "",
+              bio: userProfile.bio || "",
+              location: userProfile.location || "",
+            })
+            if (userProfile.profile_image_url) {
+              setPreviewUrl(userProfile.profile_image_url)
             }
             return
           }
@@ -102,7 +113,7 @@ export default function ProfilePage() {
         phone_number: userData.phone_number || "",
         user_type: userData.user_type || "client",
         is_verified: userData.is_verified || false,
-        avatar: userData.avatar,
+        avatar: userData.profile_image_url || userData.avatar,
         bio: userData.bio || "",
         location: userData.location || "",
       })
@@ -114,8 +125,8 @@ export default function ProfilePage() {
         location: userData.location || "",
       })
 
-      if (userData.avatar) {
-        setPreviewUrl(userData.avatar)
+      if (userData.profile_image_url || userData.avatar) {
+        setPreviewUrl(userData.profile_image_url || userData.avatar)
       }
     } catch (error) {
       console.error("Error loading profile:", error)
@@ -169,37 +180,60 @@ export default function ProfilePage() {
     try {
       setUploadingPhoto(true)
 
-      // Save to localStorage and update user state
+      // Get user data from localStorage
+      const storedUser = localStorage.getItem("camit_user")
+      if (!storedUser) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const userData = JSON.parse(storedUser)
+
+      // Update user state
       const updatedUser = { ...user, avatar: previewUrl }
       setUser(updatedUser as UserProfile)
 
       // Update localStorage
-      const storedUser = localStorage.getItem("camit_user")
-      if (storedUser) {
-        const userData = JSON.parse(storedUser)
-        userData.avatar = previewUrl
-        localStorage.setItem("camit_user", JSON.stringify(userData))
-      }
+      userData.profile_image_url = previewUrl
+      userData.avatar = previewUrl // Keep for backward compatibility
+      localStorage.setItem("camit_user", JSON.stringify(userData))
 
-      // Try to save to API
+      // Save to database using the users API
       try {
-        const response = await fetch("/api/profile", {
-          method: "PUT",
+        const response = await fetch(`/api/users/${userData.id}`, {
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ avatar: previewUrl }),
+          body: JSON.stringify({ 
+            profile_image_url: previewUrl 
+          }),
         })
 
-        if (response.ok) {
-          console.log("Photo saved to API successfully")
+        const result = await response.json()
+        
+        if (response.ok && result.success) {
+          console.log("Photo saved to database successfully")
+          toast({
+            title: "Success",
+            description: "Profile photo updated successfully!",
+          })
+        } else {
+          console.error("Failed to save photo to database:", result.error)
+          toast({
+            title: "Warning",
+            description: "Photo saved locally but failed to save to database.",
+          })
         }
       } catch (apiError) {
-        console.log("API not available, photo saved locally")
+        console.error("API error:", apiError)
+        toast({
+          title: "Warning",
+          description: "Photo saved locally but failed to save to database.",
+        })
       }
-
-      toast({
-        title: "Success",
-        description: "Profile photo updated successfully!",
-      })
 
       setSelectedFile(null)
     } catch (error) {
@@ -218,37 +252,61 @@ export default function ProfilePage() {
     try {
       setSaving(true)
 
+      // Get user data from localStorage
+      const storedUser = localStorage.getItem("camit_user")
+      if (!storedUser) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const userData = JSON.parse(storedUser)
+
       // Update user state
       const updatedUser = { ...user, ...formData } as UserProfile
       setUser(updatedUser)
 
       // Update localStorage
-      const storedUser = localStorage.getItem("camit_user")
-      if (storedUser) {
-        const userData = JSON.parse(storedUser)
-        Object.assign(userData, formData)
-        localStorage.setItem("camit_user", JSON.stringify(userData))
-      }
+      Object.assign(userData, formData)
+      localStorage.setItem("camit_user", JSON.stringify(userData))
 
-      // Try to save to API
+      // Save to database using the users API
       try {
-        const response = await fetch("/api/profile", {
-          method: "PUT",
+        const response = await fetch(`/api/users/${userData.id}`, {
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            full_name: formData.full_name,
+            phone_number: formData.phone_number,
+            bio: formData.bio,
+          }),
         })
 
-        if (response.ok) {
-          console.log("Profile saved to API successfully")
+        const result = await response.json()
+        
+        if (response.ok && result.success) {
+          console.log("Profile saved to database successfully")
+          toast({
+            title: "Success",
+            description: "Profile updated successfully!",
+          })
+        } else {
+          console.error("Failed to save profile to database:", result.error)
+          toast({
+            title: "Warning",
+            description: "Profile saved locally but failed to save to database.",
+          })
         }
       } catch (apiError) {
-        console.log("API not available, profile saved locally")
+        console.error("API error:", apiError)
+        toast({
+          title: "Warning",
+          description: "Profile saved locally but failed to save to database.",
+        })
       }
-
-      toast({
-        title: "Success",
-        description: "Profile updated successfully!",
-      })
     } catch (error) {
       console.error("Error saving profile:", error)
       toast({

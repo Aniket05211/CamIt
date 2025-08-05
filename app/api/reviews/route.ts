@@ -1,173 +1,139 @@
-import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from "next/server"
+import { createServiceClient } from "@/lib/supabase/server"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const cameramanId = searchParams.get("cameramanId")
-
-  if (!cameramanId) {
-    return NextResponse.json({ error: "Cameraman ID is required" }, { status: 400 })
-  }
-
-  const supabase = createServerSupabaseClient()
-
+export async function POST(request: NextRequest) {
   try {
-    const { data, error } = await supabase
-      .from("reviews")
-      .select(`
-        *,
-        client:client_id(id, full_name, avatar_url)
-      `)
-      .eq("cameraman_id", cameramanId)
-      .order("created_at", { ascending: false })
+    const { booking_id, reviewer_id, reviewee_id, rating, comment } = await request.json()
 
-    if (error) {
-      console.error("Error fetching reviews:", error)
-      // Return mock data for development
-      return NextResponse.json([
-        {
-          id: "1",
-          rating: 5,
-          comment: "Amazing photographer! Very professional and captured beautiful moments.",
-          created_at: "2023-05-15T10:30:00Z",
-          client: {
-            id: "c1",
-            name: "Ananya Desai",
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-          },
-        },
-        {
-          id: "2",
-          rating: 4,
-          comment: "Great experience, would recommend for any event.",
-          created_at: "2023-04-20T14:15:00Z",
-          client: {
-            id: "c2",
-            name: "Vikram Malhotra",
-            avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=2787&auto=format&fit=crop",
-          },
-        },
-      ])
+    if (!booking_id || !reviewer_id || !reviewee_id || !rating || !comment) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields" },
+        { status: 400 }
+      )
     }
 
-    const formattedReviews = data.map((review) => ({
-      id: review.id,
-      rating: review.rating,
-      comment: review.comment,
-      created_at: review.created_at,
-      client: {
-        id: review.client.id,
-        name: review.client.full_name,
-        avatar:
-          review.client.avatar_url ||
-          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-      },
-    }))
-
-    return NextResponse.json(formattedReviews)
-  } catch (error) {
-    console.error("Error in reviews API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
-
-export async function POST(request: Request) {
-  const supabase = createServerSupabaseClient()
-
-  try {
-    const body = await request.json()
-
-    // Validate required fields
-    const requiredFields = ["booking_id", "client_id", "cameraman_id", "rating", "comment"]
-    for (const field of requiredFields) {
-      if (!body[field]) {
-        return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
-      }
-    }
-
-    // Check if booking exists and is completed
-    const { data: booking, error: bookingError } = await supabase
-      .from("bookings")
-      .select("status")
-      .eq("id", body.booking_id)
-      .single()
-
-    if (bookingError) {
-      console.error("Error fetching booking:", bookingError)
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 })
-    }
-
-    if (booking.status !== "completed") {
-      return NextResponse.json({ error: "Cannot review a booking that is not completed" }, { status: 400 })
-    }
+    const supabase = await createServiceClient()
 
     // Check if review already exists for this booking
-    const { data: existingReview, error: reviewError } = await supabase
+    const { data: existingReview, error: checkError } = await supabase
       .from("reviews")
-      .select("id")
-      .eq("booking_id", body.booking_id)
+      .select("*")
+      .eq("booking_id", booking_id)
+      .eq("reviewer_id", reviewer_id)
+      .single()
 
-    if (existingReview && existingReview.length > 0) {
-      return NextResponse.json({ error: "Review already exists for this booking" }, { status: 400 })
+    if (checkError && checkError.code !== "PGRST116") {
+      console.error("Error checking existing review:", checkError)
+      return NextResponse.json(
+        { success: false, error: "Failed to check existing review" },
+        { status: 500 }
+      )
     }
 
-    // Create review
-    const { data: review, error } = await supabase
+    if (existingReview) {
+      return NextResponse.json(
+        { success: false, error: "Review already exists for this booking" },
+        { status: 400 }
+      )
+    }
+
+    // Insert the review
+    const { data: review, error: insertError } = await supabase
       .from("reviews")
       .insert({
-        booking_id: body.booking_id,
-        client_id: body.client_id,
-        cameraman_id: body.cameraman_id,
-        rating: body.rating,
-        comment: body.comment,
+        booking_id,
+        reviewer_id,
+        reviewee_id,
+        rating,
+        comment,
         created_at: new Date().toISOString(),
       })
       .select()
       .single()
 
-    if (error) {
-      console.error("Error creating review:", error)
-      return NextResponse.json({ error: "Failed to create review" }, { status: 500 })
+    if (insertError) {
+      console.error("Error inserting review:", insertError)
+      return NextResponse.json(
+        { success: false, error: "Failed to submit review" },
+        { status: 500 }
+      )
     }
 
-    // Update cameraman's average rating
-    await updateCameramanRating(supabase, body.cameraman_id)
+    // Update the booking to mark that a review has been submitted
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({ has_review: true })
+      .eq("id", booking_id)
 
-    return NextResponse.json(review)
+    if (updateError) {
+      console.error("Error updating booking review status:", updateError)
+      // Don't fail the request if this update fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: review,
+    })
   } catch (error) {
-    console.error("Error in reviews API:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Review submission error:", error)
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    )
   }
 }
 
-// Helper function to update cameraman's average rating
-async function updateCameramanRating(supabase: any, cameramanId: string) {
+export async function GET(request: NextRequest) {
   try {
-    // Get all reviews for this cameraman
-    const { data: reviews, error: reviewsError } = await supabase
-      .from("reviews")
-      .select("rating")
-      .eq("cameraman_id", cameramanId)
+    const { searchParams } = new URL(request.url)
+    const reviewee_id = searchParams.get("reviewee_id")
+    const booking_id = searchParams.get("booking_id")
 
-    if (reviewsError) {
-      console.error("Error fetching reviews for rating update:", reviewsError)
-      return
+    if (!reviewee_id && !booking_id) {
+      return NextResponse.json(
+        { success: false, error: "Missing reviewee_id or booking_id parameter" },
+        { status: 400 }
+      )
     }
 
-    // Calculate average rating
-    const totalRating = reviews.reduce((sum: number, review: any) => sum + review.rating, 0)
-    const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0
+    const supabase = await createServiceClient()
 
-    // Update cameraman profile
-    await supabase
-      .from("cameraman_profiles")
-      .update({
-        rating: averageRating,
-        total_reviews: reviews.length,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", cameramanId)
+    let query = supabase
+      .from("reviews")
+      .select(`
+        *,
+        reviewer:reviewer_id(id, full_name, profile_image_url),
+        booking:booking_id(id, title, event_date)
+      `)
+      .order("created_at", { ascending: false })
+
+    if (reviewee_id) {
+      query = query.eq("reviewee_id", reviewee_id)
+    }
+
+    if (booking_id) {
+      query = query.eq("booking_id", booking_id)
+    }
+
+    const { data: reviews, error } = await query
+
+    if (error) {
+      console.error("Error fetching reviews:", error)
+      return NextResponse.json(
+        { success: false, error: "Failed to fetch reviews" },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: reviews,
+    })
   } catch (error) {
-    console.error("Error updating cameraman rating:", error)
+    console.error("Review fetch error:", error)
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    )
   }
 }

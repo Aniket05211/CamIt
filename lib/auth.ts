@@ -1,12 +1,12 @@
 import bcrypt from "bcryptjs"
-import { createServiceSupabaseClient } from "./supabase/server"
+import { createServiceClient } from "./supabase/server"
 
 export interface SignupData {
   email: string
   password: string
   full_name: string
   phone_number?: string
-  user_type: "client" | "photographer" | "editor"
+  user_type: "client" 
 }
 
 export interface LoginData {
@@ -23,7 +23,14 @@ export interface AuthResult {
 }
 
 export class AuthService {
-  private supabase = createServiceSupabaseClient()
+  private supabase: any = null
+
+  async initialize() {
+    if (!this.supabase) {
+      this.supabase = await createServiceClient()
+    }
+    return this.supabase
+  }
 
   async hashPassword(password: string): Promise<string> {
     const saltRounds = 12
@@ -41,6 +48,8 @@ export class AuthService {
   async signup(data: SignupData): Promise<AuthResult> {
     try {
       console.log("AuthService.signup called with:", { ...data, password: "[HIDDEN]" })
+
+      const supabase = await this.initialize()
 
       // Validate required fields
       if (!data.email || !data.password || !data.full_name) {
@@ -71,7 +80,7 @@ export class AuthService {
       }
 
       // Check if user already exists
-      const { data: existingUser } = await this.supabase
+      const { data: existingUser } = await supabase
         .from("users")
         .select("id")
         .eq("email", data.email.toLowerCase())
@@ -90,7 +99,7 @@ export class AuthService {
       const passwordHash = await this.hashPassword(data.password)
 
       // Create user in Supabase
-      const { data: user, error: userError } = await this.supabase
+      const { data: user, error: userError } = await supabase
         .from("users")
         .insert({
           email: data.email.toLowerCase().trim(),
@@ -117,7 +126,7 @@ export class AuthService {
 
       // If user is a photographer, create cameraman profile
       if (data.user_type === "photographer") {
-        const { error: profileError } = await this.supabase.from("cameraman_profiles").insert({
+        const { error: profileError } = await supabase.from("cameraman_profiles").insert({
           user_id: user.id,
           bio: "Professional photographer ready to capture your special moments",
           equipment: "Professional camera equipment",
@@ -145,7 +154,7 @@ export class AuthService {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
       // Create session in Supabase
-      const { error: sessionError } = await this.supabase.from("sessions").insert({
+      const { error: sessionError } = await supabase.from("sessions").insert({
         user_id: user.id,
         session_token: sessionToken,
         expires_at: expiresAt.toISOString(),
@@ -180,6 +189,8 @@ export class AuthService {
     try {
       console.log("AuthService.login called with:", { email: data.email, password: "[HIDDEN]" })
 
+      const supabase = await this.initialize()
+
       // Validate required fields
       if (!data.email || !data.password) {
         return {
@@ -190,7 +201,7 @@ export class AuthService {
       }
 
       // Get user by email from Supabase
-      const { data: user, error: userError } = await this.supabase
+      const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
         .eq("email", data.email.toLowerCase())
@@ -228,7 +239,7 @@ export class AuthService {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
       // Create session in Supabase
-      const { error: sessionError } = await this.supabase.from("sessions").insert({
+      const { error: sessionError } = await supabase.from("sessions").insert({
         user_id: user.id,
         session_token: sessionToken,
         expires_at: expiresAt.toISOString(),
@@ -261,7 +272,8 @@ export class AuthService {
 
   async logout(sessionToken: string): Promise<{ success: boolean }> {
     try {
-      const { error } = await this.supabase.from("sessions").delete().eq("session_token", sessionToken)
+      const supabase = await this.initialize()
+      const { error } = await supabase.from("sessions").delete().eq("session_token", sessionToken)
 
       if (error) {
         console.error("Error deleting session:", error)
@@ -277,8 +289,10 @@ export class AuthService {
 
   async validateSession(sessionToken: string): Promise<any | null> {
     try {
+      const supabase = await this.initialize()
+      
       // Get session from Supabase
-      const { data: session, error: sessionError } = await this.supabase
+      const { data: session, error: sessionError } = await supabase
         .from("sessions")
         .select("*")
         .eq("session_token", sessionToken)
@@ -291,12 +305,12 @@ export class AuthService {
       // Check if session is expired
       if (new Date(session.expires_at) < new Date()) {
         // Delete expired session
-        await this.supabase.from("sessions").delete().eq("session_token", sessionToken)
+        await supabase.from("sessions").delete().eq("session_token", sessionToken)
         return null
       }
 
       // Get user data
-      const { data: user, error: userError } = await this.supabase
+      const { data: user, error: userError } = await supabase
         .from("users")
         .select("*")
         .eq("id", session.user_id)

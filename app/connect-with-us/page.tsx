@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { Camera, Edit3, Star, Clock, Upload, ChevronRight, ChevronLeft } from "lucide-react"
+import { Camera, Edit3, Star, Clock, Upload, ChevronRight, ChevronLeft, ImageIcon, Video, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,20 +37,24 @@ const editorSoftware = [
 
 interface CameramanData {
   type: CameramanType
-  name: string
+  full_name: string
   email: string
-  phone: string
+  phone_number: string
   location: string
-  experience: string
-  rate: string
-  specialties: string[]
-  equipment: string
+  experience_years: number
+  hourly_rate: number
+  daily_rate?: number
+  specializations: string[]
+  equipment: string[]
   bio: string
   languages: string[]
   availability: string[]
   awards?: string
-  celebrityClients?: string
+  celebrity_clients?: string
   portfolio: File[]
+  location_city?: string
+  location_state?: string
+  location_country?: string
 }
 interface EditorData {
   type: EditorType
@@ -83,20 +87,24 @@ const initialFormData: FormData = {
   userType: null,
   cameraman: {
     type: null,
-    name: "",
+    full_name: "",
     email: "",
-    phone: "",
+    phone_number: "",
     location: "",
-    experience: "",
-    rate: "",
-    specialties: [],
-    equipment: "",
+    experience_years: 0,
+    hourly_rate: 0,
+    daily_rate: 0,
+    specializations: [],
+    equipment: [],
     bio: "",
     languages: [],
     availability: [],
     awards: "",
-    celebrityClients: "",
+    celebrity_clients: "",
     portfolio: [],
+    location_city: "",
+    location_state: "",
+    location_country: "",
   },
   editor: {
     type: null,
@@ -145,7 +153,7 @@ export default function ConnectWithUs() {
       ...prev,
       cameraman: {
         ...prev.cameraman,
-        name: userData.full_name || "",
+        full_name: userData.full_name || "",
         email: userData.email || "",
       },
       editor: {
@@ -232,23 +240,52 @@ export default function ConnectWithUs() {
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
+      // Check if user is authenticated
+      if (!user?.id) {
+        throw new Error("User not authenticated. Please log in again.")
+      }
       let payload = {}
+      let endpoint = ""
+      
+      // Validate required fields
       if (formData.userType === "cameraman") {
+        if (!formData.cameraman.type || !formData.cameraman.full_name || !formData.cameraman.email) {
+          throw new Error("Please fill in all required fields for cameraman registration")
+        }
         payload = {
           ...formData.cameraman,
           user_type: formData.cameraman.type,
           user_id: user?.id,
         }
+        endpoint = "/api/simple-register"
       } else if (formData.userType === "editor") {
-        payload = {
-          ...formData.editor,
-          user_type: "editor",
-          user_id: user?.id,
+        if (!formData.editor.type || !formData.editor.name || !formData.editor.email) {
+          throw new Error("Please fill in all required fields for editor registration")
         }
+        // Map editor data to match the simple-register API expectations
+        payload = {
+          user_type: "editor",
+          name: formData.editor.name,
+          email: formData.editor.email,
+          phone: formData.editor.phone,
+          type: formData.editor.type,
+          location: formData.editor.location,
+          experience: formData.editor.experience,
+          rate: formData.editor.rate,
+          sampleRate: formData.editor.sampleRate,
+          turnaround: formData.editor.turnaround,
+          bio: formData.editor.bio,
+          specialties: formData.editor.specialties,
+          software: formData.editor.software,
+          languages: formData.editor.languages,
+          fullServiceRate: formData.editor.fullServiceRate
+        }
+        endpoint = "/api/simple-register"
       }
 
-      // Just call fetch, browser sends cookies automatically
-      const response = await fetch("/api/simple-register", {
+      console.log("Submitting registration:", { userType: formData.userType, payload })
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -272,7 +309,8 @@ export default function ConnectWithUs() {
           }
         }, 1500)
       } else {
-        throw new Error(result.error || "Registration failed")
+        console.error("Registration failed:", result)
+        throw new Error(result.error || result.details?.message || "Registration failed")
       }
     } catch (error) {
       toast({
@@ -426,11 +464,11 @@ export default function ConnectWithUs() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Full Name *</Label>
+                  <Label htmlFor="full_name">Full Name *</Label>
                   <Input
-                    id="name"
-                    value={formData.cameraman.name || ""}
-                    onChange={(e) => handleCameramanChange("name", e.target.value)}
+                    id="full_name"
+                    value={formData.cameraman.full_name || ""}
+                    onChange={(e) => handleCameramanChange("full_name", e.target.value)}
                     placeholder="John Doe"
                   />
                 </div>
@@ -447,12 +485,12 @@ export default function ConnectWithUs() {
                   <p className="text-xs text-gray-500">Email cannot be changed</p>
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone_number">Phone Number</Label>
                   <Input
-                    id="phone"
+                    id="phone_number"
                     type="tel"
-                    value={formData.cameraman.phone || ""}
-                    onChange={(e) => handleCameramanChange("phone", e.target.value)}
+                    value={formData.cameraman.phone_number || ""}
+                    onChange={(e) => handleCameramanChange("phone_number", e.target.value)}
                     placeholder="+1 (555) 987-6543"
                   />
                 </div>
@@ -477,49 +515,49 @@ export default function ConnectWithUs() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="experience">Years of Experience</Label>
+                  <Label htmlFor="experience_years">Years of Experience</Label>
                   <Select
-                    onValueChange={(value) => handleCameramanChange("experience", value)}
-                    value={formData.cameraman.experience}
+                    onValueChange={(value) => handleCameramanChange("experience_years", parseInt(value))}
+                    value={formData.cameraman.experience_years.toString()}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select years of experience" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="0-2">0-2 years</SelectItem>
-                      <SelectItem value="3-5">3-5 years</SelectItem>
-                      <SelectItem value="6-10">6-10 years</SelectItem>
-                      <SelectItem value="10+">10+ years</SelectItem>
+                      <SelectItem value="0">0-2 years</SelectItem>
+                      <SelectItem value="3">3-5 years</SelectItem>
+                      <SelectItem value="6">6-10 years</SelectItem>
+                      <SelectItem value="10">10+ years</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 {formData.cameraman.type === "elite" && (
                   <div>
-                    <Label htmlFor="rate">Hourly Rate (USD)</Label>
+                    <Label htmlFor="hourly_rate">Hourly Rate (USD)</Label>
                     <Input
-                      id="rate"
+                      id="hourly_rate"
                       type="number"
-                      value={formData.cameraman.rate || ""}
-                      onChange={(e) => handleCameramanChange("rate", e.target.value)}
+                      value={formData.cameraman.hourly_rate || ""}
+                      onChange={(e) => handleCameramanChange("hourly_rate", parseFloat(e.target.value) || 0)}
                       placeholder="100"
                     />
                   </div>
                 )}
                 <div>
-                  <Label>Specialties</Label>
+                  <Label>Specializations</Label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     {cameramanSpecialties.map((specialty) => (
                       <div key={specialty} className="flex items-center">
                         <Checkbox
                           id={specialty}
-                          checked={formData.cameraman.specialties.includes(specialty)}
+                          checked={formData.cameraman.specializations.includes(specialty)}
                           onCheckedChange={(checked) => {
                             if (checked) {
-                              handleCameramanChange("specialties", [...formData.cameraman.specialties, specialty])
+                              handleCameramanChange("specializations", [...formData.cameraman.specializations, specialty])
                             } else {
                               handleCameramanChange(
-                                "specialties",
-                                formData.cameraman.specialties.filter((s) => s !== specialty),
+                                "specializations",
+                                formData.cameraman.specializations.filter((s: string) => s !== specialty),
                               )
                             }
                           }}
@@ -650,11 +688,11 @@ export default function ConnectWithUs() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="celebrityClients">Celebrity Clients</Label>
+                  <Label htmlFor="celebrity_clients">Celebrity Clients</Label>
                   <Input
-                    id="celebrityClients"
-                    value={formData.cameraman.celebrityClients || ""}
-                    onChange={(e) => handleCameramanChange("celebrityClients", e.target.value)}
+                    id="celebrity_clients"
+                    value={formData.cameraman.celebrity_clients || ""}
+                    onChange={(e) => handleCameramanChange("celebrity_clients", e.target.value)}
                     placeholder="List any notable clients you've worked with"
                   />
                 </div>
@@ -705,7 +743,13 @@ export default function ConnectWithUs() {
                       type="file"
                       className="hidden"
                       multiple
-                      onChange={(e) => handleCameramanChange("portfolio", Array.from(e.target.files || []))}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || [])
+                        // Filter only image files
+                        const imageFiles = files.filter(file => file.type.startsWith('image/'))
+                        handleCameramanChange("portfolio", imageFiles)
+                      }}
                     />
                   </label>
                 </div>
@@ -739,7 +783,7 @@ export default function ConnectWithUs() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Name:</span>
-                    <span className="text-gray-600">{formData.cameraman.name}</span>
+                    <span className="text-gray-600">{formData.cameraman.full_name}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Email:</span>
@@ -747,7 +791,7 @@ export default function ConnectWithUs() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Phone:</span>
-                    <span className="text-gray-600">{formData.cameraman.phone}</span>
+                    <span className="text-gray-600">{formData.cameraman.phone_number}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Location:</span>
@@ -755,19 +799,19 @@ export default function ConnectWithUs() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Experience:</span>
-                    <span className="text-gray-600">{formData.cameraman.experience}</span>
+                    <span className="text-gray-600">{formData.cameraman.experience_years} years</span>
                   </div>
                   {formData.cameraman.type === "elite" && (
                     <div className="flex justify-between items-center">
                       <span className="font-semibold">Rate:</span>
-                      <span className="text-gray-600">${formData.cameraman.rate}/hour</span>
+                      <span className="text-gray-600">${formData.cameraman.hourly_rate}/hour</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold">Specialties:</span>
+                    <span className="font-semibold">Specializations:</span>
                     <span className="text-gray-600">
-                      {formData.cameraman.specialties.length > 0
-                        ? formData.cameraman.specialties.join(", ")
+                      {formData.cameraman.specializations.length > 0
+                        ? formData.cameraman.specializations.join(", ")
                         : "None selected"}
                     </span>
                   </div>
@@ -795,7 +839,7 @@ export default function ConnectWithUs() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="font-semibold">Celebrity Clients:</span>
-                        <span className="text-gray-600">{formData.cameraman.celebrityClients || "N/A"}</span>
+                        <span className="text-gray-600">{formData.cameraman.celebrity_clients || "N/A"}</span>
                       </div>
                     </>
                   )}
@@ -815,20 +859,427 @@ export default function ConnectWithUs() {
       }
     }
 
-    // Editor registration steps (similar structure)
+    // Editor registration steps
     if (formData.userType === "editor") {
-      // ... (keeping the existing editor steps as they were)
+      switch (step) {
+        case 1:
       return (
         <Card>
           <CardHeader>
-            <CardTitle>Editor Registration</CardTitle>
-            <CardDescription>Editor registration functionality coming soon.</CardDescription>
+                <CardTitle>Choose Your Editor Type</CardTitle>
+                <CardDescription>Select the type of editing services you offer.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <RadioGroup
+                  value={formData.editor.type || ""}
+                  onValueChange={(value) => handleEditorChange("type", value as EditorType)}
+                >
+                  <div className="flex flex-col space-y-4">
+                    <div
+                      className={`relative flex items-center space-x-2 rounded-lg border p-4 ${
+                        formData.editor.type === "photo" ? "border-purple-600 bg-purple-50" : ""
+                      }`}
+                    >
+                      <RadioGroupItem value="photo" id="photo" />
+                      <div className="flex items-center">
+                        <ImageIcon className="w-6 h-6 mr-2 text-purple-500" />
+                        <Label htmlFor="photo" className="font-medium">
+                          Photo Editor
+                        </Label>
+                      </div>
+                      <p className="text-sm text-gray-500 ml-8">
+                        Specialize in photo editing, retouching, and enhancement.
+                      </p>
+                    </div>
+                    <div
+                      className={`relative flex items-center space-x-2 rounded-lg border p-4 ${
+                        formData.editor.type === "video" ? "border-purple-600 bg-purple-50" : ""
+                      }`}
+                    >
+                      <RadioGroupItem value="video" id="video" />
+                      <div className="flex items-center">
+                        <Video className="w-6 h-6 mr-2 text-purple-500" />
+                        <Label htmlFor="video" className="font-medium">
+                          Video Editor
+                        </Label>
+                      </div>
+                      <p className="text-sm text-gray-500 ml-8">
+                        Specialize in video editing, color grading, and post-production.
+                      </p>
+                    </div>
+                    <div
+                      className={`relative flex items-center space-x-2 rounded-lg border p-4 ${
+                        formData.editor.type === "both" ? "border-purple-600 bg-purple-50" : ""
+                      }`}
+                    >
+                      <RadioGroupItem value="both" id="both" />
+                      <div className="flex items-center">
+                        <Scissors className="w-6 h-6 mr-2 text-purple-500" />
+                        <Label htmlFor="both" className="font-medium">
+                          Photo & Video Editor
+                        </Label>
+                      </div>
+                      <p className="text-sm text-gray-500 ml-8">
+                        Offer both photo and video editing services.
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+          )
+        case 2:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Personal Information</CardTitle>
+                <CardDescription>Tell us about yourself.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="editor_name">Full Name *</Label>
+                  <Input
+                    id="editor_name"
+                    value={formData.editor.name || ""}
+                    onChange={(e) => handleEditorChange("name", e.target.value)}
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editor_email">Email *</Label>
+                  <Input
+                    id="editor_email"
+                    type="email"
+                    value={formData.editor.email || ""}
+                    disabled
+                    className="bg-gray-50"
+                    placeholder="you@example.com"
+                  />
+                  <p className="text-xs text-gray-500">Email cannot be changed</p>
+                </div>
+                <div>
+                  <Label htmlFor="editor_phone">Phone Number</Label>
+                  <Input
+                    id="editor_phone"
+                    type="tel"
+                    value={formData.editor.phone || ""}
+                    onChange={(e) => handleEditorChange("phone", e.target.value)}
+                    placeholder="+1 (555) 987-6543"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editor_location">Location</Label>
+                  <Input
+                    id="editor_location"
+                    value={formData.editor.location || ""}
+                    onChange={(e) => handleEditorChange("location", e.target.value)}
+                    placeholder="City, Country"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        case 3:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Professional Details</CardTitle>
+                <CardDescription>Tell us about your editing experience.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="editor_experience">Years of Experience</Label>
+                  <Select
+                    onValueChange={(value) => handleEditorChange("experience", value)}
+                    value={formData.editor.experience}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select years of experience" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0-2">0-2 years</SelectItem>
+                      <SelectItem value="3-5">3-5 years</SelectItem>
+                      <SelectItem value="6-10">6-10 years</SelectItem>
+                      <SelectItem value="10+">10+ years</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="editor_rate">Project Rate (USD)</Label>
+                  <Input
+                    id="editor_rate"
+                    type="number"
+                    value={formData.editor.rate || ""}
+                    onChange={(e) => handleEditorChange("rate", e.target.value)}
+                    placeholder="150"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editor_sample_rate">Sample Edit Rate (USD)</Label>
+                  <Input
+                    id="editor_sample_rate"
+                    type="number"
+                    value={formData.editor.sampleRate || ""}
+                    onChange={(e) => handleEditorChange("sampleRate", e.target.value)}
+                    placeholder="25"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editor_turnaround">Turnaround Time (hours)</Label>
+                  <Input
+                    id="editor_turnaround"
+                    type="number"
+                    value={formData.editor.turnaround || ""}
+                    onChange={(e) => handleEditorChange("turnaround", e.target.value)}
+                    placeholder="24"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        case 4:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Specializations & Software</CardTitle>
+                <CardDescription>Tell us about your skills and tools.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label>Specializations</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {editorSpecialties.map((specialty) => (
+                      <div key={specialty} className="flex items-center">
+                        <Checkbox
+                          id={specialty}
+                          checked={formData.editor.specialties.includes(specialty)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              handleEditorChange("specialties", [...formData.editor.specialties, specialty])
+                            } else {
+                              handleEditorChange(
+                                "specialties",
+                                formData.editor.specialties.filter((s: string) => s !== specialty),
+                              )
+                            }
+                          }}
+                        />
+                        <Label htmlFor={specialty} className="ml-2">
+                          {specialty}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label>Software Skills</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {editorSoftware.map((software) => (
+                      <div key={software} className="flex items-center">
+                        <Checkbox
+                          id={software}
+                          checked={formData.editor.software.includes(software)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              handleEditorChange("software", [...formData.editor.software, software])
+                            } else {
+                              handleEditorChange(
+                                "software",
+                                formData.editor.software.filter((s: string) => s !== software),
+                              )
+                            }
+                          }}
+                        />
+                        <Label htmlFor={software} className="ml-2">
+                          {software}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        case 5:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Bio & Languages</CardTitle>
+                <CardDescription>Tell us about yourself and your languages.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="editor_bio">Bio</Label>
+                  <Textarea
+                    id="editor_bio"
+                    value={formData.editor.bio || ""}
+                    onChange={(e) => handleEditorChange("bio", e.target.value)}
+                    placeholder="Tell us about yourself and your editing experience"
+                    rows={5}
+                  />
+                </div>
+                <div>
+                  <Label>Languages</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {languages.map((language) => (
+                      <div key={language} className="flex items-center">
+                        <Checkbox
+                          id={language}
+                          checked={formData.editor.languages.includes(language)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              handleEditorChange("languages", [...formData.editor.languages, language])
+                            } else {
+                              handleEditorChange(
+                                "languages",
+                                formData.editor.languages.filter((l) => l !== language),
+                              )
+                            }
+                          }}
+                        />
+                        <Label htmlFor={language} className="ml-2">
+                          {language}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        case 6:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Portfolio</CardTitle>
+                <CardDescription>Upload samples of your work.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Editor registration will be implemented in the next update.</p>
+                <div className="flex items-center justify-center w-full">
+                  <label
+                    htmlFor="editor_portfolio"
+                    className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-4 text-gray-500" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">PNG, JPG or GIF (MAX. 800x400px)</p>
+                    </div>
+                    <input
+                      id="editor_portfolio"
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || [])
+                        // Filter only image files
+                        const imageFiles = files.filter(file => file.type.startsWith('image/'))
+                        handleEditorChange("portfolio", imageFiles)
+                      }}
+                    />
+                  </label>
+                </div>
+                {formData.editor.portfolio.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-500 mb-2">Selected files:</p>
+                    <ul className="list-disc pl-5">
+                      {Array.from(formData.editor.portfolio).map((file, index) => (
+                        <li key={index} className="text-sm text-gray-600">
+                          {file.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
           </CardContent>
         </Card>
       )
+        default:
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Review Your Information</CardTitle>
+                <CardDescription>Please review your information before submitting.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Type:</span>
+                    <span className="text-gray-600 capitalize">{formData.editor.type}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Name:</span>
+                    <span className="text-gray-600">{formData.editor.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Email:</span>
+                    <span className="text-gray-600">{formData.editor.email}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Phone:</span>
+                    <span className="text-gray-600">{formData.editor.phone}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Location:</span>
+                    <span className="text-gray-600">{formData.editor.location}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Experience:</span>
+                    <span className="text-gray-600">{formData.editor.experience} years</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Project Rate:</span>
+                    <span className="text-gray-600">${formData.editor.rate}/project</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Sample Rate:</span>
+                    <span className="text-gray-600">${formData.editor.sampleRate}/sample</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Turnaround:</span>
+                    <span className="text-gray-600">{formData.editor.turnaround} hours</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Specializations:</span>
+                    <span className="text-gray-600">
+                      {formData.editor.specialties.length > 0
+                        ? formData.editor.specialties.join(", ")
+                        : "None selected"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Software:</span>
+                    <span className="text-gray-600">
+                      {formData.editor.software.length > 0
+                        ? formData.editor.software.join(", ")
+                        : "None selected"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Languages:</span>
+                    <span className="text-gray-600">
+                      {formData.editor.languages.length > 0
+                        ? formData.editor.languages.join(", ")
+                        : "None selected"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">Portfolio:</span>
+                    <span className="text-gray-600">{formData.editor.portfolio.length} files selected</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={() => setIsEditing(true)} className="w-full">
+                  Edit Information
+                </Button>
+              </CardFooter>
+        </Card>
+      )
+      }
     }
 
     return null

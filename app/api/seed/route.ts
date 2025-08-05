@@ -271,8 +271,8 @@ export async function POST(request: Request) {
       {
         id: "00000000-0000-0000-0000-000000000001",
         booking_id: "00000000-0000-0000-0000-000000000003", // Completed booking
-        client_id: "00000000-0000-0000-0000-000000000001", // John Client
-        cameraman_id: "00000000-0000-0000-0000-000000000003", // Amit Kumar
+        reviewer_id: "00000000-0000-0000-0000-000000000001", // John Client
+        reviewee_id: "00000000-0000-0000-0000-000000000005", // Amit Kumar
         rating: 5,
         comment: "Excellent work! The photos of the property turned out amazing. Very professional and punctual.",
         created_at: "2025-04-16T09:00:00Z",
@@ -280,11 +280,29 @@ export async function POST(request: Request) {
       {
         id: "00000000-0000-0000-0000-000000000002",
         booking_id: "00000000-0000-0000-0000-000000000003", // Using same booking for demo
-        client_id: "00000000-0000-0000-0000-000000000002", // Sarah Client (demo purposes)
-        cameraman_id: "00000000-0000-0000-0000-000000000003", // Amit Kumar
+        reviewer_id: "00000000-0000-0000-0000-000000000002", // Sarah Client (demo purposes)
+        reviewee_id: "00000000-0000-0000-0000-000000000005", // Amit Kumar
         rating: 4,
         comment: "Great architectural photography skills. Would recommend for real estate photography.",
         created_at: "2025-04-17T14:00:00Z",
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000003",
+        booking_id: "00000000-0000-0000-0000-000000000001", // First booking
+        reviewer_id: "00000000-0000-0000-0000-000000000001", // John Client
+        reviewee_id: "00000000-0000-0000-0000-000000000003", // Rahul Sharma
+        rating: 5,
+        comment: "Amazing wedding photographer! Captured every moment beautifully. Highly recommended!",
+        created_at: "2025-05-21T10:00:00Z",
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000004",
+        booking_id: "00000000-0000-0000-0000-000000000002", // Second booking
+        reviewer_id: "00000000-0000-0000-0000-000000000002", // Sarah Client
+        reviewee_id: "00000000-0000-0000-0000-000000000004", // Priya Patel
+        rating: 5,
+        comment: "Outstanding fashion photography! The magazine shoot turned out perfect.",
+        created_at: "2025-05-26T15:00:00Z",
       },
     ]
 

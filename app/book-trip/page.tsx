@@ -5,7 +5,7 @@ import { CalendarIcon } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -43,8 +43,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 
 const inquirySchema = z.object({
-  fullName: z.string().min(2, "Full name is required"),
-  email: z.string().email("Valid email is required"),
   phone: z.string().min(10, "Phone number is required"),
   destination: z.string().min(2, "Destination is required"),
   startDate: z.date({ required_error: "Start date is required" }),
@@ -225,7 +223,7 @@ const processSteps = [
     step: 3,
     title: "Plan Together",
     description: "Connect with your photographer to plan the perfect itinerary and shot list for your trip.",
-    icon: Calendar,
+    icon: MessageCircle,
     image: "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=400&h=300&fit=crop&crop=center",
   },
   {
@@ -267,12 +265,12 @@ const valuePropositions = [
 
 export default function BookTrip() {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [reviews, setReviews] = useState([])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true)
 
   const form = useForm<z.infer<typeof inquirySchema>>({
     resolver: zodResolver(inquirySchema),
     defaultValues: {
-      fullName: "",
-      email: "",
       phone: "",
       destination: "",
       startDate: undefined,
@@ -285,38 +283,146 @@ export default function BookTrip() {
     },
   })
 
+  // Fetch reviews from API
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await fetch('/api/reviews/trips?limit=6')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            setReviews(data.reviews)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching reviews:', error)
+      } finally {
+        setIsLoadingReviews(false)
+      }
+    }
+
+    fetchReviews()
+  }, [])
+
   async function onSubmit(values: z.infer<typeof inquirySchema>) {
     setIsSubmitting(true)
 
     try {
-      // Format dates for email
-      const formattedValues = {
-        ...values,
-        startDate: values.startDate ? format(values.startDate, "PPP") : "",
-        endDate: values.endDate ? format(values.endDate, "PPP") : "",
+      // Get user from localStorage
+      const storedUser = localStorage.getItem("camit_user")
+      if (!storedUser) {
+        toast({
+          title: "❌ Login Required",
+          description: "Please log in to book a trip",
+          variant: "destructive",
+        })
+        return
       }
 
-      const response = await fetch("/api/send-inquiry-email", {
+      const userData = JSON.parse(storedUser)
+      
+      // Debug: Log user data to see what's available
+      console.log("User data from localStorage:", userData)
+      
+      // Fetch complete user profile data like the Navbar does
+      let completeUserData = userData
+      try {
+        const userResponse = await fetch(`/api/cameramen/${userData.id}`)
+        if (userResponse.ok) {
+          const userProfileData = await userResponse.json()
+          if (userProfileData.success && userProfileData.data) {
+            // Update user with complete profile data
+            completeUserData = {
+              ...userData,
+              name: userProfileData.data.name,
+              full_name: userProfileData.data.name,
+              email: userProfileData.data.email,
+              user_type: userData.user_type // Preserve the user_type from localStorage
+            }
+            console.log("Complete user data from API:", completeUserData)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching complete user data:", error)
+        // Continue with localStorage data if API fails
+      }
+      
+      // Send user data to debug endpoint
+      try {
+        const debugResponse = await fetch("/api/debug-user-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userData: completeUserData })
+        })
+        const debugResult = await debugResponse.json()
+        console.log("Debug result:", debugResult)
+      } catch (debugError) {
+        console.error("Debug endpoint error:", debugError)
+      }
+      
+      // Validate user data
+      if (!completeUserData.id) {
+        toast({
+          title: "❌ Invalid User Data",
+          description: "User ID is missing. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      if (!completeUserData.email) {
+        toast({
+          title: "❌ Email Required",
+          description: "User email is missing. Please update your profile.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const bookingData = {
+        client_id: completeUserData.id,
+        full_name: completeUserData.full_name || completeUserData.name || completeUserData.first_name + " " + completeUserData.last_name || "User",
+        email: completeUserData.email,
+        phone: values.phone,
+        destination: values.destination,
+        start_date: format(values.startDate, "yyyy-MM-dd"),
+        end_date: format(values.endDate, "yyyy-MM-dd"),
+        group_size: values.groupSize,
+        budget: values.budget,
+        photography_style: values.photographyStyle,
+        special_requests: values.specialRequests || null,
+        hear_about_us: values.hearAboutUs || null,
+      }
+      
+      // Debug: Log the booking data being sent
+      console.log("Sending booking data:", bookingData)
+
+      // Submit booking to database
+      const response = await fetch("/api/bookings/trips", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formattedValues),
+        body: JSON.stringify(bookingData),
       })
 
-      if (response.ok) {
+      const result = await response.json()
+      console.log("API response:", result)
+
+      if (result.success) {
         toast({
-          title: "🎉 Inquiry Submitted Successfully!",
+          title: "🎉 Trip Booking Submitted Successfully!",
           description: "Our team will contact you within 24 hours with personalized recommendations.",
         })
         form.reset()
       } else {
-        throw new Error("Failed to send inquiry")
+        throw new Error(result.error || "Failed to submit booking")
       }
     } catch (error) {
+      console.error("Trip booking error:", error)
       toast({
         title: "❌ Submission Failed",
-        description: "There was an error submitting your inquiry. Please try again or contact us directly.",
+        description: "There was an error submitting your booking. Please try again or contact us directly.",
         variant: "destructive",
       })
     } finally {
@@ -612,45 +718,15 @@ export default function BookTrip() {
                 <CardContent className="p-8">
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                      {/* Personal Information */}
+                      {/* Contact Information */}
                       <div className="space-y-4">
                         <h3 className="text-lg font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
-                          <Users className="h-5 w-5 text-blue-600" />
+                          <Phone className="h-5 w-5 text-blue-600" />
                           Contact Information
                         </h3>
-                        <div className="grid md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="fullName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Full Name *</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Your full name" {...field} className="h-12" />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Email Address *</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder="your.email@example.com"
-                                    type="email"
-                                    {...field}
-                                    className="h-12"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                        
+
+                        
                         <FormField
                           control={form.control}
                           name="phone"
@@ -1084,72 +1160,101 @@ export default function BookTrip() {
           </motion.div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-            {customerReviews.map((review, index) => (
-              <motion.div
-                key={review.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden">
-                  {/* Location Image Header */}
-                  <div className="relative h-32 overflow-hidden">
-                    <img
-                      src={review.locationImage || "/placeholder.svg"}
-                      alt={review.location}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-                    <div className="absolute bottom-2 left-2 text-white text-sm font-medium">{review.location}</div>
-                    <Badge className="absolute top-2 right-2 bg-white/90 text-gray-900">{review.highlight}</Badge>
-                  </div>
+            {isLoadingReviews ? (
+              // Loading skeleton
+              [...Array(6)].map((_, index) => (
+                <div key={index} className="animate-pulse">
+                  <Card className="h-full">
+                    <div className="h-32 bg-gray-200"></div>
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-gray-200 rounded"></div>
+                        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                        <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ))
+            ) : reviews.length > 0 ? (
+              reviews.map((review, index) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden">
+                    {/* Location Image Header */}
+                    <div className="relative h-32 overflow-hidden">
+                      <img
+                        src={review.locationImage || "/placeholder.svg"}
+                        alt={review.location}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                      <div className="absolute bottom-2 left-2 text-white text-sm font-medium">{review.location}</div>
+                      <Badge className="absolute top-2 right-2 bg-white/90 text-gray-900">{review.highlight}</Badge>
+                    </div>
 
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4 mb-4">
-                      <Avatar className="w-12 h-12 border-2 border-white shadow-lg">
-                        <AvatarImage src={review.avatar || "/placeholder.svg"} alt={review.name} />
-                        <AvatarFallback>
-                          {review.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-semibold text-gray-900">{review.name}</h4>
-                          <span className="text-sm text-gray-500">{review.date}</span>
-                        </div>
-                        <div className="flex items-center gap-1 mb-2">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={cn(
-                                "h-4 w-4",
-                                i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300",
-                              )}
-                            />
-                          ))}
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4 mb-4">
+                        <Avatar className="w-12 h-12 border-2 border-white shadow-lg">
+                          <AvatarImage src={review.avatar || "/placeholder.svg"} alt={review.name} />
+                          <AvatarFallback>
+                            {review.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-semibold text-gray-900">{review.name}</h4>
+                            <span className="text-sm text-gray-500">{review.date}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mb-2">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={cn(
+                                  "h-4 w-4",
+                                  i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300",
+                                )}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <p className="text-gray-700 mb-4 text-sm leading-relaxed">{review.review}</p>
-                    <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t">
-                      <span className="flex items-center gap-1">
-                        <Camera className="h-4 w-4" />
-                        {review.photos} photos received
-                      </span>
-                      <div className="flex items-center gap-1 text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Verified</span>
+                      <p className="text-gray-700 mb-4 text-sm leading-relaxed">{review.review}</p>
+                      <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t">
+                        <span className="flex items-center gap-1">
+                          <Camera className="h-4 w-4" />
+                          {review.photos} photos received
+                        </span>
+                        <div className="flex items-center gap-1 text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Verified</span>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-500">No reviews available at the moment.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>

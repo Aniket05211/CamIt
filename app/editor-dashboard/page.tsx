@@ -221,6 +221,9 @@ export default function EditorDashboard() {
   const [editData, setEditData] = useState({})
   const [activeTab, setActiveTab] = useState("overview")
   const [isUploading, setIsUploading] = useState(false)
+  const [portfolioUrl, setPortfolioUrl] = useState("")
+  const [beforeUrl, setBeforeUrl] = useState("")
+  const [afterUrl, setAfterUrl] = useState("")
   const [newSample, setNewSample] = useState({
     before: null,
     after: null,
@@ -229,21 +232,81 @@ export default function EditorDashboard() {
   })
 
   useEffect(() => {
-    // In a real application, you would fetch this data from an API
-    // For now, we'll use the mock data or try to get from localStorage
-    const storedData = localStorage.getItem("editor_data")
-    if (storedData) {
+    const fetchEditorProfile = async () => {
       try {
-        const parsedData = JSON.parse(storedData)
-        // Merge with mock data to ensure all fields exist
-        setData({ ...mockEditorData, ...parsedData })
-      } catch (e) {
-        console.error("Error parsing stored data:", e)
+        const storedUser = localStorage.getItem("camit_user")
+        const userData = storedUser ? JSON.parse(storedUser) : null
+
+        if (!userData?.id) {
+          console.error("No user data found")
+          setData(mockEditorData)
+          return
+        }
+
+        const response = await fetch(`/api/editors/profile/${userData.id}`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.editor_profile) {
+            // Transform API data to match component expectations
+            const transformedData = {
+              type: result.editor_profile.specializations?.includes("Video Editing") ? "both" : "photo",
+              name: result.user?.full_name || "Editor",
+              email: result.user?.email || "",
+              phone: result.user?.phone_number || "",
+              location: result.editor_profile.location || "",
+              experience: result.editor_profile.experience_years?.toString() || "0",
+              rate: result.editor_profile.project_rate?.toString() || "0",
+              specialties: result.editor_profile.specializations || [],
+              software: result.editor_profile.software_skills || [],
+              bio: result.editor_profile.bio || "",
+              languages: result.editor_profile.languages || [],
+              turnaround: result.editor_profile.turnaround_time?.toString() || "24",
+              sampleRate: result.editor_profile.hourly_rate?.toString() || "0",
+              fullServiceRate: result.editor_profile.full_service_rate || "75-200",
+              rating: result.editor_profile.rating || 0,
+              reviews: result.editor_profile.total_reviews || 0,
+              portfolio: result.editor_profile.portfolio_urls || [],
+              beforeAfterSamples: result.editor_profile.before_after_samples || mockEditorData.beforeAfterSamples,
+              upcomingProjects: mockEditorData.upcomingProjects, // Keep mock data for now
+              recentReviews: result.editor_profile.recent_reviews || mockEditorData.recentReviews,
+              earnings: result.editor_profile.earnings || mockEditorData.earnings,
+              stats: result.editor_profile.stats || mockEditorData.stats,
+              isAvailable: result.editor_profile.availability_status === "available",
+              instagram_handle: result.editor_profile.instagram_handle || "",
+              twitter_handle: result.editor_profile.twitter_handle || "",
+              youtube_handle: result.editor_profile.youtube_handle || "",
+              facebook_handle: result.editor_profile.facebook_handle || ""
+            }
+            setData(transformedData)
+          } else if (result.error === "Editor profile not found") {
+            // Create a default profile for new editors
+            console.log("No editor profile found, creating default profile")
+            const defaultData = {
+              ...mockEditorData,
+              name: userData.full_name || "Editor",
+              email: userData.email || "",
+              phone: userData.phone_number || "",
+              beforeAfterSamples: mockEditorData.beforeAfterSamples,
+              upcomingProjects: mockEditorData.upcomingProjects,
+              recentReviews: mockEditorData.recentReviews,
+              earnings: mockEditorData.earnings,
+              stats: mockEditorData.stats,
+              isAvailable: true
+            }
+            setData(defaultData)
+          } else {
+            setData(mockEditorData)
+          }
+        } else {
+          setData(mockEditorData)
+        }
+      } catch (error) {
+        console.error("Error fetching editor profile:", error)
         setData(mockEditorData)
       }
-    } else {
-      setData(mockEditorData)
     }
+
+    fetchEditorProfile()
   }, [])
 
   useEffect(() => {
@@ -263,14 +326,102 @@ export default function EditorDashboard() {
     )
   }
 
-  const handleSaveProfile = () => {
-    setData({ ...editData })
-    localStorage.setItem("editor_data", JSON.stringify(editData))
-    setIsEditing(false)
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been successfully updated.",
-    })
+  const handleSaveProfile = async () => {
+    try {
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
+
+      if (!userData?.id) {
+        toast({
+          title: "Error",
+          description: "User data not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Transform data to match API expectations
+      const updateData = {
+        project_rate: parseFloat(editData.rate) || 0,
+        hourly_rate: parseFloat(editData.sampleRate) || 0,
+        experience_years: parseInt(editData.experience) || 0,
+        turnaround_time: parseInt(editData.turnaround) || 24,
+        bio: editData.bio,
+        specializations: editData.specialties,
+        software_skills: editData.software,
+        languages: editData.languages,
+        availability_status: editData.isAvailable ? "available" : "busy",
+        portfolio_urls: editData.portfolio,
+        location: editData.location,
+        before_after_samples: editData.beforeAfterSamples,
+        recent_reviews: editData.recentReviews,
+        earnings: editData.earnings,
+        stats: editData.stats,
+        full_service_rate: editData.fullServiceRate,
+        instagram_handle: editData.instagram_handle,
+        twitter_handle: editData.twitter_handle,
+        youtube_handle: editData.youtube_handle,
+        facebook_handle: editData.facebook_handle,
+        phone_number: editData.phone
+      }
+
+      const response = await fetch(`/api/editors/profile/${userData.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setData({ ...editData })
+          setIsEditing(false)
+          toast({
+            title: "Profile Updated",
+            description: "Your profile has been successfully updated.",
+          })
+        } else {
+          throw new Error(result.error || "Failed to update profile")
+        }
+      } else if (response.status === 404) {
+        // Profile doesn't exist, create it
+        console.log("Profile not found, creating new profile")
+        const createResponse = await fetch(`/api/editors/profile/${userData.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updateData),
+        })
+        
+        if (createResponse.ok) {
+          const createResult = await createResponse.json()
+          if (createResult.success) {
+            setData({ ...editData })
+            setIsEditing(false)
+            toast({
+              title: "Profile Created",
+              description: "Your profile has been successfully created.",
+            })
+          } else {
+            throw new Error(createResult.error || "Failed to create profile")
+          }
+        } else {
+          throw new Error("Failed to create profile")
+        }
+      } else {
+        throw new Error("Failed to update profile")
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "Failed to update profile.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleInputChange = (field, value) => {
@@ -310,7 +461,7 @@ export default function EditorDashboard() {
     }))
   }
 
-  const handleAddSample = () => {
+  const handleAddSample = async () => {
     if (!newSample.before || !newSample.after || !newSample.description) {
       toast({
         title: "Missing Information",
@@ -320,43 +471,120 @@ export default function EditorDashboard() {
       return
     }
 
-    const newId = Math.max(0, ...data.beforeAfterSamples.map((s) => s.id)) + 1
+    try {
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
 
-    // In a real app, you would upload the files to a server
-    // For this demo, we'll create object URLs
-    const beforeUrl = URL.createObjectURL(newSample.before)
-    const afterUrl = URL.createObjectURL(newSample.after)
+      if (!userData?.id) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
 
-    const newSampleWithUrls = {
-      ...newSample,
-      id: newId,
-      before: beforeUrl,
-      after: afterUrl,
+      // Get editor profile ID first
+      const profileResponse = await fetch(`/api/editors/profile/${userData.id}`)
+      const profileData = await profileResponse.json()
+      
+      if (!profileData.success || !profileData.editor_profile) {
+        toast({
+          title: "Error",
+          description: "Editor profile not found. Please save your profile first.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const editorId = profileData.editor_profile.id
+
+      const newId = Math.max(0, ...data.beforeAfterSamples.map((s) => s.id)) + 1
+
+      // Handle both file uploads and URL inputs
+      let beforeImageUrl, afterImageUrl
+      
+      if (typeof newSample.before === 'string') {
+        // URL input
+        beforeImageUrl = newSample.before
+      } else {
+        // File upload
+        beforeImageUrl = URL.createObjectURL(newSample.before)
+      }
+      
+      if (typeof newSample.after === 'string') {
+        // URL input
+        afterImageUrl = newSample.after
+      } else {
+        // File upload
+        afterImageUrl = URL.createObjectURL(newSample.after)
+      }
+
+      const newSampleWithUrls = {
+        ...newSample,
+        id: newId,
+        before: beforeImageUrl,
+        after: afterImageUrl,
+      }
+
+      // Save before image to database
+      const beforeResponse = await fetch('/api/editors/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          editor_id: editorId,
+          image_url: beforeImageUrl,
+          title: 'Before Image',
+          description: newSample.description,
+          category: 'Before/After',
+          image_type: 'before_after',
+          is_public: true
+        }),
+      })
+
+      // Save after image to database
+      const afterResponse = await fetch('/api/editors/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          editor_id: editorId,
+          image_url: afterImageUrl,
+          title: 'After Image',
+          description: newSample.description,
+          category: 'Before/After',
+          image_type: 'before_after',
+          is_public: true
+        }),
+      })
+
+      setData((prev) => ({
+        ...prev,
+        beforeAfterSamples: [...prev.beforeAfterSamples, newSampleWithUrls],
+      }))
+
+      setNewSample({
+        before: null,
+        after: null,
+        description: "",
+        type: "photo",
+      })
+
+      toast({
+        title: "Sample Added",
+        description: "Your before/after sample has been added to your portfolio.",
+      })
+    } catch (error) {
+      console.error("Error adding sample:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add sample. Please try again.",
+        variant: "destructive",
+      })
     }
-
-    setData((prev) => ({
-      ...prev,
-      beforeAfterSamples: [...prev.beforeAfterSamples, newSampleWithUrls],
-    }))
-
-    // Update localStorage
-    const updatedData = {
-      ...data,
-      beforeAfterSamples: [...data.beforeAfterSamples, newSampleWithUrls],
-    }
-    localStorage.setItem("editor_data", JSON.stringify(updatedData))
-
-    setNewSample({
-      before: null,
-      after: null,
-      description: "",
-      type: "photo",
-    })
-
-    toast({
-      title: "Sample Added",
-      description: "Your before/after sample has been added to your portfolio.",
-    })
   }
 
   const handleDeleteSample = (id) => {
@@ -378,28 +606,71 @@ export default function EditorDashboard() {
     })
   }
 
-  const handleUploadPortfolio = (e) => {
+  const handleUploadPortfolio = async (e) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
 
     setIsUploading(true)
 
-    // In a real app, you would upload the files to a server
-    // For this demo, we'll create object URLs
-    const newUrls = files.map((file) => URL.createObjectURL(file))
+    try {
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
 
-    setTimeout(() => {
+      if (!userData?.id) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Get editor profile ID first
+      const profileResponse = await fetch(`/api/editors/profile/${userData.id}`)
+      const profileData = await profileResponse.json()
+      
+      if (!profileData.success || !profileData.editor_profile) {
+        toast({
+          title: "Error",
+          description: "Editor profile not found. Please save your profile first.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const editorId = profileData.editor_profile.id
+
+      // In a real app, you would upload the files to a server
+      // For this demo, we'll create object URLs
+      const newUrls = files.map((file) => URL.createObjectURL(file))
+
+      // Save each image to the database
+      for (const imageUrl of newUrls) {
+        const imageResponse = await fetch('/api/editors/images', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            editor_id: editorId,
+            image_url: imageUrl,
+            title: 'Portfolio Image',
+            description: 'Added from dashboard',
+            category: 'Portfolio',
+            image_type: 'portfolio',
+            is_public: true
+          }),
+        })
+
+        if (!imageResponse.ok) {
+          console.error('Failed to save image to database')
+        }
+      }
+
       setData((prev) => ({
         ...prev,
         portfolio: [...prev.portfolio, ...newUrls],
       }))
-
-      // Update localStorage
-      const updatedData = {
-        ...data,
-        portfolio: [...data.portfolio, ...newUrls],
-      }
-      localStorage.setItem("editor_data", JSON.stringify(updatedData))
 
       setIsUploading(false)
 
@@ -407,7 +678,91 @@ export default function EditorDashboard() {
         title: "Upload Complete",
         description: `Successfully added ${files.length} image(s) to your portfolio.`,
       })
-    }, 1500) // Simulate upload delay
+    } catch (error) {
+      console.error("Error uploading portfolio:", error)
+      setIsUploading(false)
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload images. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddPortfolioUrl = async () => {
+    if (!portfolioUrl.trim()) return
+
+    try {
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
+
+      if (!userData?.id) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Get editor profile ID first
+      const profileResponse = await fetch(`/api/editors/profile/${userData.id}`)
+      const profileData = await profileResponse.json()
+      
+      if (!profileData.success || !profileData.editor_profile) {
+        toast({
+          title: "Error",
+          description: "Editor profile not found. Please save your profile first.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const editorId = profileData.editor_profile.id
+
+      // Save image to database
+      const imageResponse = await fetch('/api/editors/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          editor_id: editorId,
+          image_url: portfolioUrl.trim(),
+          title: 'Portfolio Image',
+          description: 'Added from URL',
+          category: 'Portfolio',
+          image_type: 'portfolio',
+          is_public: true
+        }),
+      })
+
+      if (imageResponse.ok) {
+        setData((prev) => ({
+          ...prev,
+          portfolio: [...prev.portfolio, portfolioUrl.trim()],
+        }))
+
+        setPortfolioUrl("")
+        toast({
+          title: "Image Added",
+          description: "Image has been added to your portfolio.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to add image. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error adding portfolio URL:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add image. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleDeletePortfolioImage = (index) => {
@@ -437,26 +792,60 @@ export default function EditorDashboard() {
     setCurrentPortfolioIndex((prev) => (prev - 1 + data.portfolio.length) % data.portfolio.length)
   }
 
-  const toggleAvailability = () => {
-    const newAvailability = !data.isAvailable
-    setData((prev) => ({
-      ...prev,
-      isAvailable: newAvailability,
-    }))
+  const toggleAvailability = async () => {
+    try {
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
 
-    // Update localStorage
-    const updatedData = {
-      ...data,
-      isAvailable: newAvailability,
+      if (!userData?.id) {
+        toast({
+          title: "Error",
+          description: "User not found. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const newAvailability = !data.isAvailable
+      
+      // Update the profile in the database
+      const response = await fetch(`/api/editors/profile/${userData.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          availability_status: newAvailability ? "available" : "busy"
+        }),
+      })
+
+      if (response.ok) {
+        setData((prev) => ({
+          ...prev,
+          isAvailable: newAvailability,
+        }))
+
+        toast({
+          title: newAvailability ? "You're Now Available" : "You're Now Unavailable",
+          description: newAvailability
+            ? "Clients can now see your profile and request your services."
+            : "Your profile is now hidden from new client requests.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update availability. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating availability:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update availability. Please try again.",
+        variant: "destructive",
+      })
     }
-    localStorage.setItem("editor_data", JSON.stringify(updatedData))
-
-    toast({
-      title: newAvailability ? "You're Now Available" : "You're Now Unavailable",
-      description: newAvailability
-        ? "Clients can now see your profile and request your services."
-        : "Your profile is now hidden from new client requests.",
-    })
   }
 
   return (
@@ -538,6 +927,64 @@ export default function EditorDashboard() {
                     </span>
                   </div>
                 </div>
+                
+                {/* Social Media Links */}
+                {(data.instagram_handle || data.twitter_handle || data.youtube_handle || data.facebook_handle) && (
+                  <div className="flex gap-3 pt-2">
+                    {data.instagram_handle && (
+                      <a
+                        href={`https://instagram.com/${data.instagram_handle.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-pink-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                        </svg>
+                        {data.instagram_handle}
+                      </a>
+                    )}
+                    {data.twitter_handle && (
+                      <a
+                        href={`https://twitter.com/${data.twitter_handle.replace('@', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                        </svg>
+                        {data.twitter_handle}
+                      </a>
+                    )}
+                    {data.youtube_handle && (
+                      <a
+                        href={`https://youtube.com/${data.youtube_handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                        {data.youtube_handle}
+                      </a>
+                    )}
+                    {data.facebook_handle && (
+                      <a
+                        href={`https://facebook.com/${data.facebook_handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                        {data.facebook_handle}
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -763,34 +1210,59 @@ export default function EditorDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="mb-6">
-                  <label
-                    htmlFor="portfolio-upload"
-                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-gray-500" />
-                      <p className="text-sm text-gray-500">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500">PNG, JPG, WEBP (MAX. 5MB)</p>
+                <div className="mb-6 space-y-4">
+                  {/* URL Input for Portfolio Images */}
+                  <div>
+                    <Label htmlFor="portfolio-url">Add Image by URL</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="portfolio-url"
+                        placeholder="Enter image URL"
+                        value={portfolioUrl}
+                        onChange={(e) => setPortfolioUrl(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleAddPortfolioUrl}
+                        disabled={!portfolioUrl.trim()}
+                        size="sm"
+                      >
+                        Add
+                      </Button>
                     </div>
-                    <input
-                      id="portfolio-upload"
-                      type="file"
-                      className="hidden"
-                      multiple
-                      accept="image/*"
-                      onChange={handleUploadPortfolio}
-                      disabled={isUploading}
-                    />
-                  </label>
-                  {isUploading && (
-                    <div className="mt-2">
-                      <Progress value={45} className="h-2" />
-                      <p className="text-xs text-center mt-1 text-gray-500">Uploading...</p>
-                    </div>
-                  )}
+                  </div>
+
+                  {/* File Upload */}
+                  <div>
+                    <Label>Upload Images</Label>
+                    <label
+                      htmlFor="portfolio-upload"
+                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                    >
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <Upload className="w-8 h-8 mb-2 text-gray-500" />
+                        <p className="text-sm text-gray-500">
+                          <span className="font-semibold">Click to upload</span> or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-500">PNG, JPG, WEBP (MAX. 5MB)</p>
+                      </div>
+                      <input
+                        id="portfolio-upload"
+                        type="file"
+                        className="hidden"
+                        multiple
+                        accept="image/*"
+                        onChange={handleUploadPortfolio}
+                        disabled={isUploading}
+                      />
+                    </label>
+                    {isUploading && (
+                      <div className="mt-2">
+                        <Progress value={45} className="h-2" />
+                        <p className="text-xs text-center mt-1 text-gray-500">Uploading...</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -849,48 +1321,88 @@ export default function EditorDashboard() {
                       <Label htmlFor="before-image" className="block mb-2">
                         Before Image
                       </Label>
-                      <label
-                        htmlFor="before-image"
-                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-                      >
-                        <div className="flex flex-col items-center justify-center p-3">
-                          <Upload className="w-6 h-6 mb-2 text-gray-500" />
-                          <p className="text-sm text-gray-500">Upload "Before" image</p>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Before image URL"
+                            value={beforeUrl}
+                            onChange={(e) => setBeforeUrl(e.target.value)}
+                            className="flex-1"
+                          />
+                          <Button 
+                            onClick={() => handleNewSampleChange("before", beforeUrl)}
+                            disabled={!beforeUrl.trim()}
+                            size="sm"
+                          >
+                            Add
+                          </Button>
                         </div>
-                        <input
-                          id="before-image"
-                          type="file"
-                          className="hidden"
-                          accept="image/*"
-                          onChange={(e) => handleNewSampleChange("before", e.target.files?.[0] || null)}
-                        />
-                      </label>
-                      {newSample.before && (
-                        <p className="text-xs text-gray-600 mt-1 truncate">{newSample.before.name}</p>
-                      )}
+                        <label
+                          htmlFor="before-image"
+                          className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                        >
+                          <div className="flex flex-col items-center justify-center p-3">
+                            <Upload className="w-6 h-6 mb-2 text-gray-500" />
+                            <p className="text-sm text-gray-500">Upload "Before" image</p>
+                          </div>
+                          <input
+                            id="before-image"
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => handleNewSampleChange("before", e.target.files?.[0] || null)}
+                          />
+                        </label>
+                        {newSample.before && (
+                          <p className="text-xs text-gray-600 mt-1 truncate">
+                            {typeof newSample.before === 'string' ? newSample.before : newSample.before.name}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div>
                       <Label htmlFor="after-image" className="block mb-2">
                         After Image
                       </Label>
-                      <label
-                        htmlFor="after-image"
-                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-                      >
-                        <div className="flex flex-col items-center justify-center p-3">
-                          <Upload className="w-6 h-6 mb-2 text-gray-500" />
-                          <p className="text-sm text-gray-500">Upload "After" image</p>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="After image URL"
+                            value={afterUrl}
+                            onChange={(e) => setAfterUrl(e.target.value)}
+                            className="flex-1"
+                          />
+                          <Button 
+                            onClick={() => handleNewSampleChange("after", afterUrl)}
+                            disabled={!afterUrl.trim()}
+                            size="sm"
+                          >
+                            Add
+                          </Button>
                         </div>
-                        <input
-                          id="after-image"
-                          type="file"
-                          className="hidden"
-                          accept="image/*"
-                          onChange={(e) => handleNewSampleChange("after", e.target.files?.[0] || null)}
-                        />
-                      </label>
-                      {newSample.after && <p className="text-xs text-gray-600 mt-1 truncate">{newSample.after.name}</p>}
+                        <label
+                          htmlFor="after-image"
+                          className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                        >
+                          <div className="flex flex-col items-center justify-center p-3">
+                            <Upload className="w-6 h-6 mb-2 text-gray-500" />
+                            <p className="text-sm text-gray-500">Upload "After" image</p>
+                          </div>
+                          <input
+                            id="after-image"
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => handleNewSampleChange("after", e.target.files?.[0] || null)}
+                          />
+                        </label>
+                        {newSample.after && (
+                          <p className="text-xs text-gray-600 mt-1 truncate">
+                            {typeof newSample.after === 'string' ? newSample.after : newSample.after.name}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1190,6 +1702,48 @@ export default function EditorDashboard() {
                           <Label htmlFor={`language-${language}`}>{language}</Label>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Social Media</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-instagram">Instagram Handle</Label>
+                        <Input
+                          id="edit-instagram"
+                          value={editData.instagram_handle || ""}
+                          onChange={(e) => handleInputChange("instagram_handle", e.target.value)}
+                          placeholder="@username"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-twitter">Twitter Handle</Label>
+                        <Input
+                          id="edit-twitter"
+                          value={editData.twitter_handle || ""}
+                          onChange={(e) => handleInputChange("twitter_handle", e.target.value)}
+                          placeholder="@username"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-youtube">YouTube Channel</Label>
+                        <Input
+                          id="edit-youtube"
+                          value={editData.youtube_handle || ""}
+                          onChange={(e) => handleInputChange("youtube_handle", e.target.value)}
+                          placeholder="Channel name or URL"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-facebook">Facebook Page</Label>
+                        <Input
+                          id="edit-facebook"
+                          value={editData.facebook_handle || ""}
+                          onChange={(e) => handleInputChange("facebook_handle", e.target.value)}
+                          placeholder="Page name or URL"
+                        />
+                      </div>
                     </div>
                   </div>
                 </form>

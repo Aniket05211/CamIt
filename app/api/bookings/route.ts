@@ -1,277 +1,237 @@
-import { NextResponse } from "next/server"
-import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { NextRequest, NextResponse } from "next/server"
+import { createServiceClient } from "@/lib/supabase/server"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get("userId")
-  const status = searchParams.get("status")
-
-  const supabase = createServerSupabaseClient()
-
+export async function POST(request: NextRequest) {
   try {
-    // Build query
-    let query = supabase.from("bookings").select(`
-        *,
-        client:client_id(id, full_name, avatar_url),
-        cameraman:cameraman_id(
-          id,
-          users!inner(id, full_name, avatar_url)
-        )
-      `)
+    const bookingData = await request.json()
+    const supabase = await createServiceClient()
 
-    // Filter by user ID if provided
-    if (userId) {
-      // Check if user is client or cameraman
-      const { data: user } = await supabase.from("users").select("user_type").eq("id", userId).single()
-
-      if (user?.user_type === "client") {
-        query = query.eq("client_id", userId)
-      } else if (user?.user_type === "cameraman") {
-        // For cameraman, we need to find their profile ID first
-        const { data: cameramanProfile } = await supabase
-          .from("cameraman_profiles")
-          .select("id")
-          .eq("user_id", userId)
-          .single()
-
-        if (cameramanProfile) {
-          query = query.eq("cameraman_id", cameramanProfile.id)
-        }
-      }
-    }
-
-    // Filter by status if provided
-    if (status) {
-      query = query.eq("status", status)
-    }
-
-    // Order by booking date
-    query = query.order("booking_date", { ascending: false })
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error("Error fetching bookings:", error)
-      // Return mock data for development
-      return NextResponse.json([
-        {
-          id: "1",
-          client: {
-            id: "c1",
-            name: "Ananya Desai",
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-          },
-          cameraman: {
-            id: "1",
-            name: "Rahul Sharma",
-            avatar: "https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?q=80&w=2971&auto=format&fit=crop",
-          },
-          date: "2023-06-15",
-          time: "14:00:00",
-          duration: 3,
-          location: "Delhi, India",
-          address: "123 Main St, Delhi",
-          coordinates: [77.209, 28.6139],
-          price: 450,
-          status: "completed",
-          payment_status: "paid",
-          payment_method: "credit_card",
-          special_requirements: "Outdoor photoshoot",
-          created_at: "2023-05-01T10:00:00Z",
-          updated_at: "2023-06-16T18:00:00Z",
-        },
-        {
-          id: "2",
-          client: {
-            id: "c1",
-            name: "Ananya Desai",
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-          },
-          cameraman: {
-            id: "2",
-            name: "Priya Patel",
-            avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-          },
-          date: "2023-07-20",
-          time: "10:00:00",
-          duration: 2,
-          location: "Mumbai, India",
-          address: "456 Park Ave, Mumbai",
-          coordinates: [72.8777, 19.076],
-          price: 300,
-          status: "confirmed",
-          payment_status: "pending",
-          payment_method: null,
-          special_requirements: "Indoor studio session",
-          created_at: "2023-06-10T15:30:00Z",
-          updated_at: "2023-06-11T09:00:00Z",
-        },
-      ])
-    }
-
-    // Format the response
-    const formattedBookings = data.map((booking) => ({
-      id: booking.id,
-      client: {
-        id: booking.client.id,
-        name: booking.client.full_name,
-        avatar: booking.client.avatar_url,
-      },
-      cameraman: {
-        id: booking.cameraman.id,
-        name: booking.cameraman.users.full_name,
-        avatar: booking.cameraman.users.avatar_url,
-      },
-      date: booking.booking_date,
-      time: booking.booking_time,
-      duration: booking.duration_hours,
-      location: booking.location,
-      address: booking.address,
-      coordinates: booking.coordinates,
-      price: booking.price,
-      status: booking.status,
-      payment_status: booking.payment_status,
-      payment_method: booking.payment_method,
-      special_requirements: booking.special_requirements,
-      created_at: booking.created_at,
-      updated_at: booking.updated_at,
-    }))
-
-    return NextResponse.json(formattedBookings)
-  } catch (error) {
-    console.error("Error in bookings API:", error)
-    // Return mock data in case of error for development
-    return NextResponse.json([
-      {
-        id: "1",
-        client: {
-          id: "c1",
-          name: "Ananya Desai",
-          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-        },
-        cameraman: {
-          id: "1",
-          name: "Rahul Sharma",
-          avatar: "https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?q=80&w=2971&auto=format&fit=crop",
-        },
-        date: "2023-06-15",
-        time: "14:00:00",
-        duration: 3,
-        location: "Delhi, India",
-        address: "123 Main St, Delhi",
-        coordinates: [77.209, 28.6139],
-        price: 450,
-        status: "completed",
-        payment_status: "paid",
-        payment_method: "credit_card",
-        special_requirements: "Outdoor photoshoot",
-        created_at: "2023-05-01T10:00:00Z",
-        updated_at: "2023-06-16T18:00:00Z",
-      },
-      {
-        id: "2",
-        client: {
-          id: "c1",
-          name: "Ananya Desai",
-          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-        },
-        cameraman: {
-          id: "2",
-          name: "Priya Patel",
-          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-        },
-        date: "2023-07-20",
-        time: "10:00:00",
-        duration: 2,
-        location: "Mumbai, India",
-        address: "456 Park Ave, Mumbai",
-        coordinates: [72.8777, 19.076],
-        price: 300,
-        status: "confirmed",
-        payment_status: "pending",
-        payment_method: null,
-        special_requirements: "Indoor studio session",
-        created_at: "2023-06-10T15:30:00Z",
-        updated_at: "2023-06-11T09:00:00Z",
-      },
-    ])
-  }
-}
-
-export async function POST(request: Request) {
-  const supabase = createServerSupabaseClient()
-
-  try {
-    const body = await request.json()
+    console.log("Creating booking with data:", {
+      client_id: bookingData.client_id,
+      photographer_id: bookingData.photographer_id,
+      title: bookingData.title,
+      status: bookingData.status
+    })
 
     // Validate required fields
-    const requiredFields = [
-      "client_id",
-      "cameraman_id",
-      "booking_date",
-      "booking_time",
-      "duration_hours",
-      "location",
-      "address",
-      "coordinates",
-      "price",
-    ]
-
-    for (const field of requiredFields) {
-      if (!body[field]) {
-        return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
-      }
+    if (!bookingData.client_id || !bookingData.photographer_id || !bookingData.event_date) {
+      console.error("Missing required fields:", {
+        has_client_id: !!bookingData.client_id,
+        has_photographer_id: !!bookingData.photographer_id,
+        has_event_date: !!bookingData.event_date
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing required fields",
+        },
+        { status: 400 }
+      )
     }
 
-    // Create booking
-    const { data: booking, error } = await supabase
+    // Get photographer details
+    const { data: photographer, error: photographerError } = await supabase
+      .from("users")
+      .select("full_name, email, phone_number")
+      .eq("id", bookingData.photographer_id)
+      .single()
+
+    if (photographerError) {
+      console.error("Photographer fetch error:", photographerError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Photographer not found",
+          details: `Photographer with ID ${bookingData.photographer_id} not found in database`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // Get client details
+    const { data: client, error: clientError } = await supabase
+      .from("users")
+      .select("full_name, email, phone_number")
+      .eq("id", bookingData.client_id)
+      .single()
+
+    if (clientError) {
+      console.error("Client fetch error:", clientError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Client not found",
+        },
+        { status: 404 }
+      )
+    }
+
+    // Create booking with all details
+    const { data: newBooking, error: insertError } = await supabase
       .from("bookings")
       .insert({
-        client_id: body.client_id,
-        cameraman_id: body.cameraman_id,
-        booking_date: body.booking_date,
-        booking_time: body.booking_time,
-        duration_hours: body.duration_hours,
-        location: body.location,
-        address: body.address,
-        coordinates: body.coordinates,
-        price: body.price,
+        client_id: bookingData.client_id,
+        photographer_id: bookingData.photographer_id,
+        client_name: client.full_name,
+        client_email: client.email,
+        client_phone: client.phone_number,
+        photographer_name: photographer.full_name,
+        photographer_email: photographer.email,
+        photographer_phone: photographer.phone_number,
+        event_date: bookingData.event_date,
+        event_date_from: bookingData.event_date_from,
+        event_date_to: bookingData.event_date_to,
+        event_type: bookingData.event_type,
+        duration_hours: bookingData.duration_hours,
+        location_address: bookingData.location_address,
+        estimated_guests: bookingData.estimated_guests,
+        special_requirements: bookingData.special_requirements,
+        budget_min: bookingData.budget_min,
+        budget_max: bookingData.budget_max,
+        contact_preference: bookingData.contact_preference,
+        venue_details: bookingData.venue_details,
+        accommodation_type: bookingData.accommodation_type,
+        accommodation_details: bookingData.accommodation_details,
+        celebrity_name: bookingData.celebrity_name,
+        shoot_purpose: bookingData.shoot_purpose,
+        preferred_style: bookingData.preferred_style,
+        equipment_needed: bookingData.equipment_needed,
+        makeup_artist: bookingData.makeup_artist,
+        stylist: bookingData.stylist,
+        security_needed: bookingData.security_needed,
+        privacy_level: bookingData.privacy_level,
+        media_coverage: bookingData.media_coverage,
+        exclusive_rights: bookingData.exclusive_rights,
+        title: bookingData.title,
+        description: bookingData.description,
         status: "pending",
+        booking_type: "photography",
         payment_status: "pending",
-        payment_method: body.payment_method || null,
-        special_requirements: body.special_requirements || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
 
-    if (error) {
-      console.error("Error creating booking:", error)
-      // Return mock data for development
-      return NextResponse.json({
-        id: "new-booking-id",
-        client_id: body.client_id,
-        cameraman_id: body.cameraman_id,
-        booking_date: body.booking_date,
-        booking_time: body.booking_time,
-        duration_hours: body.duration_hours,
-        location: body.location,
-        address: body.address,
-        coordinates: body.coordinates,
-        price: body.price,
-        status: "pending",
-        payment_status: "pending",
-        payment_method: body.payment_method || null,
-        special_requirements: body.special_requirements || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+    if (insertError) {
+      console.error("Error creating booking:", insertError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to create booking",
+          details: insertError.message,
+        },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json(booking)
+    console.log("Booking created successfully:", {
+      booking_id: newBooking.id,
+      client_id: newBooking.client_id,
+      photographer_id: newBooking.photographer_id,
+      status: newBooking.status
+    })
+
+      return NextResponse.json({
+      success: true,
+      message: "Booking request submitted successfully",
+      booking: newBooking,
+    })
   } catch (error) {
-    console.error("Error in bookings API:", error)
+    console.error("Create booking error:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    )
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const clientId = searchParams.get('client_id')
+    const photographerId = searchParams.get('photographer_id')
+    const status = searchParams.get('status')
+    const test = searchParams.get('test')
+
+    // Test endpoint to create a sample booking
+    if (test === 'create') {
+      const supabase = await createServiceClient()
+      
+      const testBooking = {
+        client_id: "25308c26-013f-4665-a5cf-d6c1ff345c2b", // Use the actual client ID from logs
+        photographer_id: "fb3cf51f-967a-4f1c-8456-46ca57727151", // Your user ID as photographer
+        // Note: This photographer_id should match an existing cameraman in the cameramen table
+        client_name: "Test Client",
+        client_email: "test@example.com",
+        client_phone: "1234567890",
+        photographer_name: "Test Photographer",
+        photographer_email: "photographer@example.com",
+        photographer_phone: "0987654321",
+        event_date: "2025-01-15",
+        event_date_from: "2025-01-15",
+        event_date_to: "2025-01-15",
+        event_type: "test_event",
+        duration_hours: 4, // Increased duration for better testing
+        location_address: "Test Location",
+        estimated_guests: 5,
+        special_requirements: "Test requirements",
+        budget_min: 100,
+        budget_max: 200,
+        contact_preference: "email",
+        venue_details: "Test venue",
+        title: "Test Booking for Payment",
+        description: "Test booking description for payment testing",
+        status: "accepted", // Set to accepted so payment can be made
+        booking_type: "photography",
+        payment_status: "pending",
+      }
+
+      const { data: newBooking, error: insertError } = await supabase
+        .from("bookings")
+        .insert(testBooking)
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error("Error creating test booking:", insertError)
+        return NextResponse.json({ error: "Failed to create test booking" }, { status: 500 })
+      }
+
+      console.log("Test booking created:", newBooking)
+      return NextResponse.json({ success: true, booking: newBooking })
+    }
+
+    const supabase = await createServiceClient()
+
+    let query = supabase.from("bookings").select("*")
+
+    if (clientId) {
+      query = query.eq("client_id", clientId)
+    }
+
+    if (photographerId) {
+      // Use the photographer_id field from the bookings table
+      query = query.eq("photographer_id", photographerId)
+    }
+
+    if (status) {
+      query = query.eq("status", status)
+    }
+
+    const { data: bookings, error } = await query.order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("Error fetching bookings:", error)
+      return NextResponse.json({ error: "Failed to fetch bookings" }, { status: 500 })
+    }
+
+    console.log("Fetched bookings:", { clientId, photographerId, status, count: bookings?.length })
+    return NextResponse.json(bookings)
+  } catch (error) {
+    console.error("Error in bookings GET API:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

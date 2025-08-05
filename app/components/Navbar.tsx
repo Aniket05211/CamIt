@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState, useRef, useEffect } from "react"
-import { ChevronDown, Globe, Menu, X, User, LogOut, Settings } from "lucide-react"
+import { ChevronDown, Globe, Menu, X, User, LogOut, Settings, Bell, CheckCircle, XCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -19,24 +19,121 @@ function getUserFromLocalStorage() {
   return user ? JSON.parse(user) : null
 }
 
+interface Booking {
+  id: string
+  title: string
+  photographer_name: string
+  status: string
+  created_at: string
+}
+
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [showAboutMenu, setShowAboutMenu] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasPhotographerProfile, setHasPhotographerProfile] = useState(false)
+  const [hasEditorProfile, setHasEditorProfile] = useState(false)
+  const [userBookings, setUserBookings] = useState<Booking[]>([])
+  const [loadingBookings, setLoadingBookings] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const userData = getUserFromLocalStorage()
     setUser(userData)
-    if (userData) {
-      fetch(`/api/check-photographer-profile?user_id=${userData.id}`)
-        .then((res) => res.json())
-        .then((data) => setHasPhotographerProfile(data.exists))
+    
+    const initializeUser = async () => {
+      if (userData) {
+        try {
+          // Fetch complete user profile data
+          const userResponse = await fetch(`/api/cameramen/${userData.id}`)
+          if (userResponse.ok) {
+            const userProfileData = await userResponse.json()
+            if (userProfileData.success && userProfileData.data) {
+              // Update user with complete profile data, but preserve user_type from localStorage
+              setUser({
+                ...userData,
+                name: userProfileData.data.name,
+                full_name: userProfileData.data.name,
+                user_type: userData.user_type // Preserve the user_type from localStorage
+              })
+            }
+          }
+
+          const profileResponse = await fetch(`/api/check-photographer-profile?user_id=${userData.id}`)
+          const profileData = await profileResponse.json()
+          const isPhotographer = profileData.exists
+          setHasPhotographerProfile(isPhotographer)
+          
+          // Check for editor profile
+          const editorResponse = await fetch(`/api/editors/profile/${userData.id}`)
+          const editorData = await editorResponse.json()
+          const isEditor = editorData.success && editorData.editor_profile
+          setHasEditorProfile(isEditor)
+          
+          // Fetch user's bookings only if they are NOT a photographer or editor (client users only)
+          if (!isPhotographer && !isEditor) {
+            fetchUserBookings(userData.id)
+          }
+        } catch (error) {
+          console.error("Error checking photographer profile:", error)
+        }
+      } else {
+        // If no userData, ensure we still set loading to false
+        setIsLoading(false)
+      }
+      setIsLoading(false)
     }
-    setIsLoading(false)
+    
+    initializeUser()
   }, [])
+
+  const fetchUserBookings = async (userId: string) => {
+    try {
+      setLoadingBookings(true)
+      const response = await fetch(`/api/bookings?client_id=${userId}`)
+      if (response.ok) {
+        const bookings = await response.json()
+        setUserBookings(bookings || [])
+      }
+    } catch (error) {
+      console.error("Error fetching user bookings:", error)
+    } finally {
+      setLoadingBookings(false)
+    }
+  }
+
+  const refreshBookings = () => {
+    if (user?.id) {
+      fetchUserBookings(user.id)
+    }
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'accepted':
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'rejected':
+        return <XCircle className="h-4 w-4 text-red-500" />
+      case 'pending':
+        return <Clock className="h-4 w-4 text-yellow-500" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'accepted':
+        return 'Accepted'
+      case 'rejected':
+        return 'Rejected'
+      case 'pending':
+        return 'Pending'
+      default:
+        return status
+    }
+  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -47,6 +144,14 @@ const Navbar = () => {
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
+
+  // Refresh bookings every 30 seconds - only for client users
+  useEffect(() => {
+    if (user?.id && !hasPhotographerProfile) {
+      const interval = setInterval(refreshBookings, 30000) // 30 seconds
+      return () => clearInterval(interval)
+    }
+  }, [user?.id, hasPhotographerProfile])
 
   const toggleAboutMenu = () => {
     setShowAboutMenu(!showAboutMenu)
@@ -83,10 +188,14 @@ const Navbar = () => {
                   <Link href="/search" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                     Book
                   </Link>
-                  {/* Show Cameraman Dashboard or Connect With Us based on photographer profile */}
+                  {/* Show Dashboard or Connect With Us based on user profile */}
                   {user && hasPhotographerProfile ? (
                     <Link href="/cameraman-dashboard" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                       Cameraman Dashboard
+                    </Link>
+                  ) : user && hasEditorProfile ? (
+                    <Link href="/editor-dashboard" className="text-[16px] text-white hover:opacity-70 transition-opacity">
+                      Editor Dashboard
                     </Link>
                   ) : (
                     <Link href="/connect-with-us" className="text-[16px] text-white hover:opacity-70 transition-opacity">
@@ -135,15 +244,96 @@ const Navbar = () => {
                 ) : user ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="text-white hover:bg-white/10">
+                      <Button variant="ghost" className="text-white hover:bg-white/10 relative">
                         <User className="h-5 w-5 mr-2" />
-                        {user.full_name || "My Account"}
+                        {user.name || user.full_name || "My Account"}
+                        {!hasPhotographerProfile && !hasEditorProfile && userBookings.some(booking => booking.status === 'pending') && (
+                          <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full animate-pulse"></div>
+                        )}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                      <DropdownMenuLabel>{user.name || user.full_name || "My Account"}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {hasPhotographerProfile ? (
+                      
+                      {/* Booking Notifications - Only for Client Users */}
+                      {!hasPhotographerProfile && !hasEditorProfile && userBookings.length > 0 ? (
+                        <>
+                          <DropdownMenuLabel className="text-xs text-gray-500 font-normal flex items-center justify-between">
+                            <span>
+                              <Bell className="h-3 w-3 mr-1 inline" />
+                              Booking Status
+                            </span>
+                            <button
+                              onClick={refreshBookings}
+                              className="text-blue-500 hover:text-blue-700 text-xs"
+                              disabled={loadingBookings}
+                            >
+                              {loadingBookings ? '...' : '↻'}
+                            </button>
+                          </DropdownMenuLabel>
+                          {userBookings.slice(0, 3).map((booking) => (
+                            <DropdownMenuItem key={booking.id} asChild>
+                              <Link href="/bookings" className="flex items-center justify-between w-full">
+                                <div className="flex items-center">
+                                  {getStatusIcon(booking.status)}
+                                  <span className="ml-2 text-xs truncate max-w-[120px]">
+                                    {booking.title}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-gray-500 ml-2">
+                                  {getStatusText(booking.status)}
+                                </span>
+                              </Link>
+                            </DropdownMenuItem>
+                          ))}
+                          {userBookings.length > 3 && (
+                            <DropdownMenuItem asChild>
+                              <Link href="/bookings" className="text-xs text-blue-600">
+                                View all {userBookings.length} bookings
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                        </>
+                      ) : !hasPhotographerProfile && !hasEditorProfile && (
+                        <>
+                          <DropdownMenuLabel className="text-xs text-gray-500 font-normal flex items-center justify-between">
+                            <span>
+                              <Bell className="h-3 w-3 mr-1 inline" />
+                              Booking Status
+                            </span>
+                            <button
+                              onClick={refreshBookings}
+                              className="text-blue-500 hover:text-blue-700 text-xs"
+                              disabled={loadingBookings}
+                            >
+                              {loadingBookings ? '...' : '↻'}
+                            </button>
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem className="text-xs text-gray-500">
+                            No bookings yet
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      
+                      {user.user_type === "admin" ? (
+                        <>
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin-dashboard">
+                              <Settings className="h-4 w-4 mr-2" />
+                              Admin Dashboard
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/profile">
+                              <User className="h-4 w-4 mr-2" />
+                              Profile
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
+                      ) : hasPhotographerProfile ? (
                         <>
                           <DropdownMenuItem asChild>
                             <Link href="/cameraman-dashboard">
@@ -158,13 +348,36 @@ const Navbar = () => {
                             </Link>
                           </DropdownMenuItem>
                         </>
+                      ) : hasEditorProfile ? (
+                        <>
+                          <DropdownMenuItem asChild>
+                            <Link href="/editor-dashboard">
+                              <Settings className="h-4 w-4 mr-2" />
+                              Dashboard
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/profile">
+                              <User className="h-4 w-4 mr-2" />
+                              Profile
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
                       ) : (
-                        <DropdownMenuItem asChild>
-                          <Link href="/profile">
-                            <User className="h-4 w-4 mr-2" />
-                            Profile
-                          </Link>
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem asChild>
+                            <Link href="/profile">
+                              <User className="h-4 w-4 mr-2" />
+                              Profile
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link href="/bookings">
+                              <Bell className="h-4 w-4 mr-2" />
+                              My Bookings
+                            </Link>
+                          </DropdownMenuItem>
+                        </>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout}>
@@ -231,10 +444,14 @@ const Navbar = () => {
                 <Link href="/search" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                   Book
                 </Link>
-                {/* Show Cameraman Dashboard or Connect With Us based on photographer profile */}
+                {/* Show Dashboard or Connect With Us based on user profile */}
                 {user && hasPhotographerProfile ? (
                   <Link href="/cameraman-dashboard" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                     Cameraman Dashboard
+                  </Link>
+                ) : user && hasEditorProfile ? (
+                  <Link href="/editor-dashboard" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
+                    Editor Dashboard
                   </Link>
                 ) : (
                   <Link href="/connect-with-us" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
@@ -254,9 +471,9 @@ const Navbar = () => {
                   <div className="h-10 w-full bg-gray-700 animate-pulse rounded"></div>
                 ) : user ? (
                   <>
-                    {hasPhotographerProfile && (
+                    {(hasPhotographerProfile || hasEditorProfile) && (
                       <Link
-                        href="/cameraman-dashboard"
+                        href={hasPhotographerProfile ? "/cameraman-dashboard" : "/editor-dashboard"}
                         className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900"
                       >
                         Dashboard

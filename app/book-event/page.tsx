@@ -76,9 +76,48 @@ export default function BookEvent() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    router.push("/pricing")
+    
+    try {
+      // Get user from localStorage
+      const storedUser = localStorage.getItem("camit_user")
+      if (!storedUser) {
+        alert("Please log in to book an event")
+        router.push("/login")
+        return
+      }
+
+      const userData = JSON.parse(storedUser)
+
+      // Submit booking to database
+      const response = await fetch("/api/bookings/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: userData.id,
+          event_type: formData.eventType,
+          service_type: formData.serviceType,
+          event_date: formData.date,
+          event_time: formData.time,
+          location: formData.location,
+          number_of_guests: parseInt(formData.guests) || null,
+          special_requirements: formData.requirements || null,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        alert("Event booking submitted successfully! We'll contact you soon.")
+        router.push("/bookings")
+      } else {
+        alert("Failed to submit booking. Please try again.")
+      }
+    } catch (error) {
+      console.error("Error submitting booking:", error)
+      alert("An error occurred. Please try again.")
+    }
   }
 
   const canProceedToNextStep = formData.eventType !== "" && formData.serviceType !== ""

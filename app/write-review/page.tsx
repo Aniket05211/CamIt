@@ -15,14 +15,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 
 const formSchema = z.object({
-  cameraman: z.string().min(2, {
-    message: "Cameraman name must be at least 2 characters.",
+  reviewer_id: z.string().min(1, {
+    message: "Reviewer ID is required.",
+  }),
+  booking_id: z.string().min(1, {
+    message: "Booking ID is required.",
+  }),
+  reviewee_id: z.string().min(1, {
+    message: "Reviewee ID is required.",
   }),
   tripType: z.string({
     required_error: "Please select a trip type.",
   }),
   rating: z.number().min(1).max(5),
-  review: z.string().min(10, {
+  comment: z.string().min(10, {
     message: "Review must be at least 10 characters.",
   }),
   wouldRecommend: z.boolean(),
@@ -42,25 +48,56 @@ export default function WriteReview() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      cameraman: "",
+      reviewer_id: "",
+      booking_id: "",
+      reviewee_id: "",
       rating: 0,
-      review: "",
+      comment: "",
       wouldRecommend: false,
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
-    // Here you would typically send the form data to your backend
-    console.log(values)
-    setTimeout(() => {
-      setIsSubmitting(false)
+    
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reviewer_id: values.reviewer_id,
+          booking_id: values.booking_id,
+          reviewee_id: values.reviewee_id,
+          rating: values.rating,
+          comment: values.comment,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit review')
+      }
+
+      const result = await response.json()
+      console.log('Review submitted:', result)
+      
       toast({
         title: "Review Submitted!",
         description: "Thank you for your feedback.",
       })
       form.reset()
-    }, 2000)
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to submit review",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -85,25 +122,64 @@ export default function WriteReview() {
           >
             <h2 className="text-2xl font-semibold mb-6 text-gray-800">Write Your Review</h2>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
                   control={form.control}
-                  name="cameraman"
+                  name="reviewer_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cameraman Name</FormLabel>
+                      <FormLabel>Your User ID</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter the cameraman's name"
+                          placeholder="Enter your user ID"
                           {...field}
                           className="border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </FormControl>
-                      <FormDescription>The name of the cameraman you're reviewing.</FormDescription>
+                      <FormDescription>The ID of the user writing the review.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                
+                <FormField
+                  control={form.control}
+                  name="booking_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Booking ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter the booking ID"
+                          {...field}
+                          className="border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </FormControl>
+                      <FormDescription>The ID of the booking being reviewed.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="reviewee_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reviewee ID</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter the reviewee's user ID"
+                          {...field}
+                          className="border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </FormControl>
+                      <FormDescription>The ID of the user being reviewed.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
                 <FormField
                   control={form.control}
                   name="tripType"
@@ -129,6 +205,7 @@ export default function WriteReview() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="rating"
@@ -153,9 +230,10 @@ export default function WriteReview() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
-                  name="review"
+                  name="comment"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Your Review</FormLabel>
@@ -171,6 +249,7 @@ export default function WriteReview() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
                   name="wouldRecommend"
@@ -188,6 +267,7 @@ export default function WriteReview() {
                     </FormItem>
                   )}
                 />
+                
                 <Button
                   type="submit"
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"

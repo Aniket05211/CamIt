@@ -1,612 +1,614 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import Image from "next/image"
-import {
-  CreditCard,
-  Building2,
-  Smartphone,
-  Check,
-  MapPin,
-  Clock,
-  Calendar,
-  AlertCircle,
-  ArrowLeft,
-  Loader2,
-} from "lucide-react"
 import { motion } from "framer-motion"
-import { useToast } from "@/components/ui/use-toast"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { toast } from "@/components/ui/use-toast"
+import {
+  CreditCard,
+  Calendar,
+  MapPin,
+  User,
+  DollarSign,
+  CheckCircle,
+  Loader2,
+} from "lucide-react"
 
-// Types
-interface PlanDetails {
+interface BookingOriginal {
   id: string
-  name: string
-  price: number
-  features: string[]
-  description: string
+  title: string
+  client_name: string
+  photographer_name: string
+  photographer_id: string
+  event_date: string
+  duration_hours: number
+  location_address: string
+  status: "pending" | "accepted" | "rejected" | "cancelled" | "completed"
+  payment_status: "pending" | "success" | "failed" | "refunded"
+  budget_min?: number
+  budget_max?: number
+  special_requirements?: string
+  created_at: string
+  accepted_at?: string
+  rejected_at?: string
+  rejection_reason?: string
+  has_review?: boolean
+  hourly_rate?: number
+  daily_rate?: number
 }
 
-interface EventDetails {
+interface BookingEvent {
+  id: string
+  event_type: string
+  service_type: string
+  event_date: string
+  event_time: string
   location: string
-  date: string
-  time: string
-  duration: number
-  type: string
+  number_of_guests: number
+  special_requirements?: string
+  status: string
+  photographer_id?: string
+  estimated_price?: number
+  final_price?: number
+  payment_status: string
+  created_at: string
+  updated_at: string
+  notes?: string
 }
 
-interface PaymentFormData {
+interface BookingTrip {
+  id: string
+  full_name: string
+  email: string
+  phone: string
+  destination: string
+  start_date: string
+  end_date: string
+  group_size: number
+  budget: number
+  photography_style: string
+  special_requests?: string
+  hear_about_us?: string
+  status: string
+  photographer_id?: string
+  estimated_price?: number
+  final_price?: number
+  payment_status: string
+  created_at: string
+  updated_at: string
+  notes?: string
+}
+
+type Booking = BookingOriginal | BookingEvent | BookingTrip
+
+interface PaymentForm {
   cardNumber: string
-  cardName: string
+  cardHolder: string
   expiryDate: string
   cvv: string
-  address: string
-  city: string
-  zipCode: string
-  country: string
+  billingAddress: string
 }
-
-// Mock data - in a real app, this would come from an API or database
-const plans: Record<string, PlanDetails> = {
-  basic: {
-    id: "basic",
-    name: "Basic",
-    price: 299,
-    description: "Perfect for small events and personal photoshoots",
-    features: ["1 Photographer", "4 Hours Coverage", "100 Edited Photos", "Online Gallery"],
-  },
-  professional: {
-    id: "professional",
-    name: "Professional",
-    price: 599,
-    description: "Ideal for medium-sized events and business needs",
-    features: ["2 Photographers", "8 Hours Coverage", "300 Edited Photos", "Printed Album", "Express Delivery"],
-  },
-  enterprise: {
-    id: "enterprise",
-    name: "Enterprise",
-    price: 999,
-    description: "Complete solution for large events and premium requirements",
-    features: [
-      "3 Photographers",
-      "12 Hours Coverage",
-      "500 Edited Photos",
-      "Premium Printed Album",
-      "Full Coverage",
-      "Video Highlights",
-    ],
-  },
-}
-
-// Payment methods
-const paymentMethods = [
-  {
-    id: "card",
-    name: "Credit/Debit Card",
-    icon: <CreditCard className="w-6 h-6" />,
-    description: "Pay securely with your card",
-  },
-  {
-    id: "paypal",
-    name: "PayPal",
-    icon: <Building2 className="w-6 h-6" />,
-    description: "Fast and secure payment",
-  },
-  {
-    id: "upi",
-    name: "UPI",
-    icon: <Smartphone className="w-6 h-6" />,
-    description: "Google Pay, PhonePe, Paytm",
-  },
-]
 
 export default function PaymentPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const { toast } = useToast()
-
-  // Get plan from URL query parameter
-  const planId = searchParams.get("plan") || "basic"
-
-  // State
-  const [selectedPlan, setSelectedPlan] = useState<PlanDetails | null>(null)
-  const [eventDetails, setEventDetails] = useState<EventDetails | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState("card")
-  const [isLoading, setIsLoading] = useState(false)
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [formData, setFormData] = useState<PaymentFormData>({
+  const router = useRouter()
+  const bookingId = searchParams.get("booking_id")
+  const bookingType = searchParams.get("type")
+  
+  const [booking, setBooking] = useState<Booking | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState(false)
+  const [paymentComplete, setPaymentComplete] = useState(false)
+  
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>({
     cardNumber: "",
-    cardName: "",
+    cardHolder: "",
     expiryDate: "",
     cvv: "",
-    address: "",
-    city: "",
-    zipCode: "",
-    country: "",
+    billingAddress: "",
   })
 
-  // Fetch plan details and event details
   useEffect(() => {
-    // Set plan details from our plans object
-    if (plans[planId]) {
-      setSelectedPlan(plans[planId])
-    } else {
-      // Fallback to basic plan if invalid plan ID
-      setSelectedPlan(plans.basic)
+    console.log("=== PAYMENT PAGE LOAD DEBUG ===")
+    console.log("Booking ID:", bookingId)
+    console.log("Booking Type:", bookingType)
+    console.log("URL Search Params:", searchParams.toString())
+    console.log("Type from URL:", searchParams.get("type"))
+    console.log("=== END PAYMENT PAGE LOAD DEBUG ===")
+    
+    if (bookingId && bookingType) {
+      fetchBookingDetails()
+    } else if (bookingId && !bookingType) {
+      console.error("No booking type provided in URL, redirecting to bookings page")
       toast({
-        title: "Plan not found",
-        description: "The selected plan was not found. Showing basic plan instead.",
+        title: "Error",
+        description: "Invalid payment URL. Please try again from the bookings page.",
         variant: "destructive",
       })
+      router.push("/bookings")
     }
+  }, [bookingId, bookingType, searchParams, router])
 
-    // In a real app, we would fetch event details from an API or local storage
-    // For this example, we'll use mock data
-    setEventDetails({
-      location: "123 Event Street, New York, NY",
-      date: "2025-04-15",
-      time: "14:00",
-      duration: 4,
-      type: "Wedding",
-    })
-  }, [planId, toast])
-
-  // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Clear error for this field when user types
-    if (formErrors[name]) {
-      setFormErrors((prev) => {
-        const newErrors = { ...prev }
-        delete newErrors[name]
-        return newErrors
+  const fetchBookingDetails = async () => {
+    try {
+      console.log("=== FETCH BOOKING DETAILS STARTED ===")
+      console.log("Booking ID:", bookingId)
+      console.log("Booking Type:", bookingType)
+      
+      // Validate parameters
+      if (!bookingId) {
+        throw new Error("Booking ID is required")
+      }
+      if (!bookingType) {
+        console.error("No booking type provided in URL, redirecting to bookings page")
+        toast({
+          title: "Error",
+          description: "Invalid payment URL. Please try again from the bookings page.",
+          variant: "destructive",
+        })
+        router.push("/bookings")
+        return
+      }
+      
+      // Handle different booking types
+      let response
+      let apiUrl
+      
+      if (bookingType === "original") {
+        apiUrl = `/api/bookings/${bookingId}`
+        console.log("Fetching from original bookings table")
+      } else if (bookingType === "event") {
+        apiUrl = `/api/bookings/events/${bookingId}`
+        console.log("Fetching from booking_event table")
+      } else if (bookingType === "trip") {
+        apiUrl = `/api/bookings/trips/${bookingId}`
+        console.log("Fetching from booking_trip table")
+      } else {
+        throw new Error(`Invalid booking type: ${bookingType}`)
+      }
+      
+      console.log("API URL called:", apiUrl)
+      response = await fetch(apiUrl)
+      console.log("Response status:", response.status)
+      console.log("Response headers:", response.headers)
+      
+      if (response.ok) {
+        const responseData = await response.json()
+        console.log("Received booking data:", responseData)
+        
+        // Handle the API response structure
+        const bookingData = responseData.booking || responseData
+        console.log("Final booking data for payment page:", bookingData)
+        setBooking(bookingData)
+      } else {
+        console.error("Failed to fetch booking, status:", response.status)
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+        
+        toast({
+          title: "Error",
+          description: "Failed to load booking details",
+          variant: "destructive",
+        })
+        router.push("/bookings")
+      }
+    } catch (error) {
+      console.error("=== ERROR IN FETCH BOOKING DETAILS ===")
+      console.error("Error type:", typeof error)
+      console.error("Error message:", error.message)
+      console.error("Error stack:", error.stack)
+      
+      toast({
+        title: "Error",
+        description: "Failed to load booking details",
+        variant: "destructive",
       })
+      router.push("/bookings")
+    } finally {
+      setLoading(false)
+      console.log("=== FETCH BOOKING DETAILS FINISHED ===")
     }
   }
 
-  // Validate form
-  const validateForm = (): boolean => {
-    const errors: Record<string, string> = {}
-
-    // Validate based on payment method
-    if (paymentMethod === "card") {
-      if (!formData.cardNumber.trim()) errors.cardNumber = "Card number is required"
-      else if (!/^\d{16}$/.test(formData.cardNumber.replace(/\s/g, ""))) errors.cardNumber = "Invalid card number"
-
-      if (!formData.cardName.trim()) errors.cardName = "Name on card is required"
-
-      if (!formData.expiryDate.trim()) errors.expiryDate = "Expiry date is required"
-      else if (!/^\d{2}\/\d{2}$/.test(formData.expiryDate)) errors.expiryDate = "Invalid format (MM/YY)"
-
-      if (!formData.cvv.trim()) errors.cvv = "CVV is required"
-      else if (!/^\d{3,4}$/.test(formData.cvv)) errors.cvv = "Invalid CVV"
-    }
-
-    // Always validate address
-    if (!formData.address.trim()) errors.address = "Address is required"
-    if (!formData.city.trim()) errors.city = "City is required"
-    if (!formData.zipCode.trim()) errors.zipCode = "ZIP code is required"
-    if (!formData.country.trim()) errors.country = "Country is required"
-
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
+  const handleInputChange = (field: keyof PaymentForm, value: string) => {
+    setPaymentForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
   }
 
-  // Handle payment submission
+  const formatCardNumber = (value: string) => {
+    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "")
+    const matches = v.match(/\d{4,16}/g)
+    const match = matches && matches[0] || ""
+    const parts = []
+    for (let i = 0, len = match.length; i < len; i += 4) {
+      parts.push(match.substring(i, i + 4))
+    }
+    if (parts.length) {
+      return parts.join(" ")
+    } else {
+      return v
+    }
+  }
+
+  const formatExpiryDate = (value: string) => {
+    const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "")
+    if (v.length >= 2) {
+      return v.substring(0, 2) + "/" + v.substring(2, 4)
+    }
+    return v
+  }
+
+  // Calculate payment amount based on booking type
+  const calculatePaymentAmount = (booking: Booking): number => {
+    console.log("Calculating payment amount for booking:", {
+      final_price: booking.final_price,
+      estimated_price: booking.estimated_price,
+      budget: 'budget' in booking ? booking.budget : undefined,
+      hourly_rate: 'hourly_rate' in booking ? booking.hourly_rate : undefined,
+      duration_hours: 'duration_hours' in booking ? booking.duration_hours : undefined
+    })
+
+    // If final_price is set, use that
+    if (booking.final_price) {
+      console.log("Using final_price:", booking.final_price)
+      return booking.final_price
+    }
+
+    // For original bookings, calculate based on hourly rate and duration
+    if ('title' in booking && booking.hourly_rate && booking.duration_hours) {
+      const amount = booking.hourly_rate * booking.duration_hours
+      console.log("Using hourly calculation for original booking:", amount)
+      return amount
+    }
+
+    // For event bookings, use estimated_price or default
+    if ('event_type' in booking) {
+      const amount = booking.estimated_price || 500
+      console.log("Using estimated_price for event:", amount)
+      return amount
+    }
+
+    // For trip bookings, use estimated_price or budget
+    if ('budget' in booking) {
+      const amount = booking.estimated_price || booking.budget || 1000
+      console.log("Using estimated_price/budget for trip:", amount)
+      return amount
+    }
+    
+    console.log("No valid payment amount found, returning 500 as default")
+    return 500
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
+    if (!booking) return
+
+    // Validate form
+    if (!paymentForm.cardNumber || !paymentForm.cardHolder || !paymentForm.expiryDate || !paymentForm.cvv) {
       toast({
-        title: "Validation Error",
-        description: "Please check the form for errors",
+        title: "Error",
+        description: "Please fill in all payment details",
         variant: "destructive",
       })
       return
     }
 
-    setIsLoading(true)
+    setProcessing(true)
 
     try {
-      // In a real app, this would be a call to a payment API
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Simulate successful payment
-      toast({
-        title: "Payment Successful",
-        description: "Your booking has been confirmed!",
+      // Debug: Log booking data
+      console.log("Booking data for payment:", {
+        id: booking.id,
+        duration_hours: booking.duration_hours,
+        hourly_rate: booking.hourly_rate,
+        daily_rate: booking.daily_rate,
+        final_price: booking.final_price,
+        budget_max: booking.budget_max
       })
 
-      // Redirect to confirmation page
-      router.push("/booking-confirmation")
+      // Validate booking data
+      if (!booking.id) {
+        throw new Error("Invalid booking ID")
+      }
+
+      // Calculate payment amount using the helper function
+      const amount = calculatePaymentAmount(booking)
+
+      console.log("Calculated payment amount:", {
+        amount,
+        hourly_rate: booking.hourly_rate,
+        duration_hours: booking.duration_hours,
+        calculation: booking.hourly_rate ? `${booking.hourly_rate} × ${booking.duration_hours} = ${amount}` : 'Using fallback amount'
+      })
+
+      if (!amount || amount <= 0) {
+        throw new Error("Invalid payment amount")
+      }
+
+      // Create payment record
+      const paymentData = {
+        booking_id: booking.id,
+        amount: amount,
+        payment_method: "credit_card",
+        payment_status: "completed",
+        card_last4: paymentForm.cardNumber.slice(-4),
+        card_brand: "visa", // This would be determined by card number in real implementation
+        billing_address: {
+          address: paymentForm.billingAddress
+        },
+        transaction_id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      }
+
+      console.log("=== PAYMENT DATA DEBUG ===")
+      console.log("Booking Type from URL:", bookingType)
+      console.log("Booking Type type:", typeof bookingType)
+      console.log("Payment data being sent:", paymentData)
+      console.log("=== END PAYMENT DATA DEBUG ===")
+
+      const response = await fetch("/api/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(paymentData),
+      })
+
+      if (response.ok) {
+        const responseData = await response.json()
+        console.log("Payment API response:", responseData)
+        
+        if (responseData.success) {
+          // Payment API already handles the booking status update
+          console.log("Payment completed successfully, booking status updated by payments API")
+
+          setPaymentComplete(true)
+          toast({
+            title: "Payment Successful!",
+            description: "Your payment has been processed successfully.",
+          })
+        } else {
+          throw new Error(responseData.error || "Payment failed")
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Payment failed")
+      }
     } catch (error) {
+      console.error("Payment error:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       toast({
         title: "Payment Failed",
-        description: "There was an error processing your payment. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setProcessing(false)
     }
   }
 
-  // Calculate totals
-  const calculateTotals = () => {
-    if (!selectedPlan) return { subtotal: 0, tax: 0, total: 0 }
-
-    const subtotal = selectedPlan.price
-    const tax = subtotal * 0.18 // 18% tax
-    const total = subtotal + tax
-
-    return { subtotal, tax, total }
-  }
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount)
-  }
-
-  // If data is still loading
-  if (!selectedPlan || !eventDetails) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading payment details...</p>
+        </div>
       </div>
     )
   }
 
-  const { subtotal, tax, total } = calculateTotals()
+  if (!booking) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p>Booking not found</p>
+          <Button onClick={() => router.push("/bookings")} className="mt-4">
+            Back to Bookings
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (paymentComplete) {
+    return (
+      <div className="container mx-auto p-4 flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Payment Complete!</h2>
+            <p className="text-gray-600 mb-6">
+              Your payment has been processed successfully. You will receive a confirmation email shortly.
+            </p>
+            <div className="space-y-2 text-sm text-gray-500">
+              <p>Booking: {'event_type' in booking ? `${booking.event_type} Event` : `${booking.destination} Trip`}</p>
+              <p>Amount: ${calculatePaymentAmount(booking)}</p>
+              <p>Status: Payment Successful</p>
+            </div>
+            <Button onClick={() => router.push("/bookings")} className="mt-6 w-full">
+              View My Bookings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <h1 className="text-xl font-semibold">Complete Your Booking</h1>
-            </div>
-            <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-F78V0XlIaaPc5tlK9BBmw0o57K7dwN.png"
-              alt="CamIt Logo"
-              width={40}
-              height={40}
-              className="dark:invert"
-            />
-          </div>
+    <div className="container mx-auto p-4 max-w-4xl">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6"
+      >
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">Complete Payment</h1>
+          <p className="text-gray-600 mt-2">Secure payment for your booking</p>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Payment Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Event Details Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Booking Summary */}
             <Card>
               <CardHeader>
-                <CardTitle>Event Details</CardTitle>
-                <CardDescription>Review your event information</CardDescription>
+              <CardTitle className="flex items-center">
+                <Calendar className="h-5 w-5 mr-2" />
+                Booking Summary
+              </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-semibold text-lg">{booking.title}</h3>
+                <p className="text-gray-600">{booking.photographer_name}</p>
+              </div>
+              
                   <div className="space-y-2">
-                    <div className="flex items-center text-sm">
-                      <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span className="font-medium">Location:</span>
-                      <span className="ml-2">{eventDetails.location}</span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span className="font-medium">Date:</span>
-                      <span className="ml-2">{new Date(eventDetails.date).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center text-sm">
-                      <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span className="font-medium">Time:</span>
-                      <span className="ml-2">{eventDetails.time}</span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span className="font-medium">Duration:</span>
-                      <span className="ml-2">{eventDetails.duration} hours</span>
-                    </div>
-                  </div>
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                  <span>{new Date(booking.event_date).toLocaleDateString()}</span>
                 </div>
-                <Badge variant="outline" className="text-sm">
-                  {eventDetails.type}
+                <div className="flex items-center">
+                  <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                  <span>{booking.location_address}</span>
+                </div>
+                <div className="flex items-center">
+                  <User className="h-4 w-4 mr-2 text-gray-500" />
+                  <span>{booking.duration_hours} hours</span>
+                </div>
+                    </div>
+
+              <div className="border-t pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Total Amount:</span>
+                  <span className="text-2xl font-bold text-green-600">
+                    ${calculatePaymentAmount(booking)}
+                  </span>
+                    </div>
+                {booking.hourly_rate && booking.duration_hours && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    ${booking.hourly_rate}/hour × {booking.duration_hours} hours
+                  </div>
+                )}
+                {!booking.hourly_rate && booking.duration_hours && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    $50/hour (default) × {booking.duration_hours} hours
+                  </div>
+                )}
+                <Badge variant="secondary" className="mt-2">
+                  {booking.payment_status === "pending" ? "Payment Pending" : "Payment Required"}
                 </Badge>
+              </div>
               </CardContent>
             </Card>
 
-            {/* Payment Methods */}
+          {/* Payment Form */}
             <Card>
               <CardHeader>
-                <CardTitle>Payment Method</CardTitle>
-                <CardDescription>Select your preferred payment method</CardDescription>
+              <CardTitle className="flex items-center">
+                <CreditCard className="h-5 w-5 mr-2" />
+                Payment Details
+              </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="card" onValueChange={setPaymentMethod}>
-                  <TabsList className="grid grid-cols-3 mb-6">
-                    <TabsTrigger value="card">Card</TabsTrigger>
-                    <TabsTrigger value="paypal">PayPal</TabsTrigger>
-                    <TabsTrigger value="upi">UPI</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="card">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4">
-                          <div className="space-y-2">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
                             <Label htmlFor="cardNumber">Card Number</Label>
                             <Input
                               id="cardNumber"
-                              name="cardNumber"
+                    type="text"
                               placeholder="1234 5678 9012 3456"
-                              value={formData.cardNumber}
-                              onChange={handleInputChange}
-                              className={formErrors.cardNumber ? "border-destructive" : ""}
-                            />
-                            {formErrors.cardNumber && (
-                              <p className="text-sm text-destructive">{formErrors.cardNumber}</p>
-                            )}
+                    value={paymentForm.cardNumber}
+                    onChange={(e) => handleInputChange("cardNumber", formatCardNumber(e.target.value))}
+                    maxLength={19}
+                    required
+                  />
                           </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor="cardName">Name on Card</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="cardHolder">Card Holder Name</Label>
                             <Input
-                              id="cardName"
-                              name="cardName"
+                      id="cardHolder"
+                      type="text"
                               placeholder="John Doe"
-                              value={formData.cardName}
-                              onChange={handleInputChange}
-                              className={formErrors.cardName ? "border-destructive" : ""}
-                            />
-                            {formErrors.cardName && <p className="text-sm text-destructive">{formErrors.cardName}</p>}
+                      value={paymentForm.cardHolder}
+                      onChange={(e) => handleInputChange("cardHolder", e.target.value)}
+                      required
+                    />
                           </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                  <div>
                               <Label htmlFor="expiryDate">Expiry Date</Label>
                               <Input
                                 id="expiryDate"
-                                name="expiryDate"
+                      type="text"
                                 placeholder="MM/YY"
-                                value={formData.expiryDate}
-                                onChange={handleInputChange}
-                                className={formErrors.expiryDate ? "border-destructive" : ""}
-                              />
-                              {formErrors.expiryDate && (
-                                <p className="text-sm text-destructive">{formErrors.expiryDate}</p>
-                              )}
+                      value={paymentForm.expiryDate}
+                      onChange={(e) => handleInputChange("expiryDate", formatExpiryDate(e.target.value))}
+                      maxLength={5}
+                      required
+                    />
+                  </div>
                             </div>
-                            <div className="space-y-2">
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                               <Label htmlFor="cvv">CVV</Label>
                               <Input
                                 id="cvv"
-                                name="cvv"
+                      type="text"
                                 placeholder="123"
-                                value={formData.cvv}
-                                onChange={handleInputChange}
-                                className={formErrors.cvv ? "border-destructive" : ""}
-                              />
-                              {formErrors.cvv && <p className="text-sm text-destructive">{formErrors.cvv}</p>}
+                      value={paymentForm.cvv}
+                      onChange={(e) => handleInputChange("cvv", e.target.value.replace(/\D/g, ""))}
+                      maxLength={4}
+                      required
+                    />
                             </div>
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="space-y-2">
-                          <Label htmlFor="address">Billing Address</Label>
+                  <div>
+                    <Label htmlFor="billingAddress">Billing Address</Label>
                           <Input
-                            id="address"
-                            name="address"
-                            placeholder="123 Main St"
-                            value={formData.address}
-                            onChange={handleInputChange}
-                            className={formErrors.address ? "border-destructive" : ""}
-                          />
-                          {formErrors.address && <p className="text-sm text-destructive">{formErrors.address}</p>}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="city">City</Label>
-                            <Input
-                              id="city"
-                              name="city"
-                              placeholder="New York"
-                              value={formData.city}
-                              onChange={handleInputChange}
-                              className={formErrors.city ? "border-destructive" : ""}
-                            />
-                            {formErrors.city && <p className="text-sm text-destructive">{formErrors.city}</p>}
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="zipCode">ZIP Code</Label>
-                            <Input
-                              id="zipCode"
-                              name="zipCode"
-                              placeholder="10001"
-                              value={formData.zipCode}
-                              onChange={handleInputChange}
-                              className={formErrors.zipCode ? "border-destructive" : ""}
-                            />
-                            {formErrors.zipCode && <p className="text-sm text-destructive">{formErrors.zipCode}</p>}
+                      id="billingAddress"
+                      type="text"
+                      placeholder="123 Main St, City, State"
+                      value={paymentForm.billingAddress}
+                      onChange={(e) => handleInputChange("billingAddress", e.target.value)}
+                      required
+                    />
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="country">Country</Label>
-                          <Input
-                            id="country"
-                            name="country"
-                            placeholder="United States"
-                            value={formData.country}
-                            onChange={handleInputChange}
-                            className={formErrors.country ? "border-destructive" : ""}
-                          />
-                          {formErrors.country && <p className="text-sm text-destructive">{formErrors.country}</p>}
-                        </div>
-                      </div>
-
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Secure Payment</AlertTitle>
-                        <AlertDescription>
-                          Your payment information is encrypted and secure. We never store your full card details.
-                        </AlertDescription>
-                      </Alert>
-
-                      <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Processing...
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={processing}
+                >
+                  {processing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing Payment...
                           </>
                         ) : (
-                          `Pay ${formatCurrency(total)}`
+                    <>
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Pay ${calculatePaymentAmount(booking)}
+                    </>
                         )}
                       </Button>
                     </form>
-                  </TabsContent>
-
-                  <TabsContent value="paypal">
-                    <div className="text-center py-8">
-                      <Button
-                        onClick={() => {
-                          toast({
-                            title: "Redirecting to PayPal",
-                            description: "You will be redirected to PayPal to complete your payment.",
-                          })
-                        }}
-                        className="bg-[#0070ba] hover:bg-[#005ea6]"
-                      >
-                        Continue with PayPal
-                      </Button>
-                      <p className="text-sm text-muted-foreground mt-4">
-                        You will be redirected to PayPal to complete your payment securely.
-                      </p>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="upi">
-                    <div className="grid grid-cols-2 gap-4">
-                      {["Google Pay", "PhonePe", "Paytm", "BHIM UPI"].map((app) => (
-                        <Button
-                          key={app}
-                          variant="outline"
-                          onClick={() => {
-                            toast({
-                              title: `Opening ${app}`,
-                              description: `Redirecting to ${app} for payment.`,
-                            })
-                          }}
-                          className="h-20 flex flex-col items-center justify-center"
-                        >
-                          <Smartphone className="h-6 w-6 mb-2" />
-                          {app}
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-4 text-center">
-                      Select your preferred UPI app to complete the payment.
-                    </p>
-                  </TabsContent>
-                </Tabs>
               </CardContent>
             </Card>
           </div>
-
-          {/* Right Column - Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Order Summary</CardTitle>
-                  <CardDescription>Review your selected plan</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-primary/5 rounded-lg p-4"
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-lg font-medium">{selectedPlan.name} Plan</h3>
-                      <Badge>{formatCurrency(selectedPlan.price)}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-4">{selectedPlan.description}</p>
-                    <ul className="space-y-2">
-                      {selectedPlan.features.map((feature) => (
-                        <li key={feature} className="flex items-center text-sm">
-                          <Check className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </motion.div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span>{formatCurrency(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Tax (18%)</span>
-                      <span>{formatCurrency(tax)}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-medium">
-                      <span>Total</span>
-                      <span>{formatCurrency(total)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex flex-col space-y-4">
-                  <p className="text-xs text-center text-muted-foreground">
-                    By completing this purchase, you agree to our{" "}
-                    <a href="/terms" className="text-primary hover:underline">
-                      Terms of Service
-                    </a>{" "}
-                    and{" "}
-                    <a href="/privacy" className="text-primary hover:underline">
-                      Privacy Policy
-                    </a>
-                  </p>
-                </CardFooter>
-              </Card>
-
-              <div className="mt-6 flex items-center justify-center">
-                <Button variant="outline" size="sm" onClick={() => router.push("/help")} className="text-xs">
-                  Need help? Contact support
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
     </div>
   )
 }

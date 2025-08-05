@@ -44,36 +44,44 @@ const languages = [
 
 interface CameramanData {
   type: CameramanType
-  name: string
+  full_name: string
   email: string
-  phone: string
+  phone_number: string
   location: string
-  experience: string
-  rate: string
-  specialties: string[]
-  equipment: string
+  experience_years: number
+  hourly_rate: number
+  daily_rate?: number
+  specializations: string[]
+  equipment: string[]
   bio: string
   languages: string[]
   availability: string[]
   awards?: string
-  celebrityClients?: string
+  celebrity_clients?: string
   portfolio: File[]
+  location_city?: string
+  location_state?: string
+  location_country?: string
 }
 
 const initialData: CameramanData = {
   type: null,
-  name: "",
+  full_name: "",
   email: "",
-  phone: "",
+  phone_number: "",
   location: "",
-  experience: "",
-  rate: "",
-  specialties: [],
-  equipment: "",
+  experience_years: 0,
+  hourly_rate: 0,
+  daily_rate: 0,
+  specializations: [],
+  equipment: [],
   bio: "",
   languages: [],
   availability: [],
   portfolio: [],
+  location_city: "",
+  location_state: "",
+  location_country: "",
 }
 
 export default function CameramanRegistration() {
@@ -101,17 +109,103 @@ export default function CameramanRegistration() {
     }
   }
 
-  const handleSubmit = () => {
-    // Simulate API call
-    console.log("Submitting data:", data)
-    localStorage.setItem("cameraman_data", JSON.stringify(data))
-    toast({
-      title: "Registration Successful!",
-      description: "Your profile has been created. Redirecting to dashboard...",
-    })
-    setTimeout(() => {
-      router.push("/cameraman-dashboard")
-    }, 2000)
+  const handleSubmit = async () => {
+    try {
+      console.log("Submitting data:", data)
+      
+      // Create user first
+      const userResponse = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: data.full_name,
+          email: data.email,
+          phone_number: data.phone_number,
+          user_type: data.type === "elite" ? "elite" : "realtime",
+        }),
+      })
+
+      if (!userResponse.ok) {
+        throw new Error("Failed to create user")
+      }
+
+      const userResponseData = await userResponse.json()
+      console.log("User created:", userResponseData)
+      
+      if (!userResponseData.success) {
+        throw new Error(userResponseData.error || "Failed to create user")
+      }
+      
+      const userData = userResponseData.data
+
+      // Create photographer profile
+      const profileResponse = await fetch("/api/photographer-profiles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userData.id,
+          experience_years: data.experience_years,
+          hourly_rate: data.hourly_rate,
+          daily_rate: data.daily_rate,
+          bio: data.bio,
+          specializations: data.specializations,
+          equipment: data.equipment,
+          location: data.location,
+          location_city: data.location_city,
+          location_state: data.location_state,
+          location_country: data.location_country,
+          languages: data.languages,
+          availability: data.availability,
+          awards: data.awards,
+          celebrity_clients: data.celebrity_clients,
+          photographer_type: data.type,
+          is_available: true,
+          rating: 0,
+          total_reviews: 0,
+        }),
+      })
+
+      if (!profileResponse.ok) {
+        throw new Error("Failed to create photographer profile")
+      }
+
+      const profileResponseData = await profileResponse.json()
+      console.log("Profile created:", profileResponseData)
+      
+      if (!profileResponseData.success) {
+        throw new Error(profileResponseData.error || "Failed to create photographer profile")
+      }
+      
+      const profileData = profileResponseData.data
+
+      // Store user data in localStorage
+      localStorage.setItem("camit_user", JSON.stringify({
+        id: userData.id,
+        email: userData.email,
+        name: userData.full_name,
+        user_type: userData.user_type,
+      }))
+
+      toast({
+        title: "Registration Successful!",
+        description: "Your profile has been created. Redirecting to dashboard...",
+      })
+
+      setTimeout(() => {
+        router.push("/cameraman-dashboard")
+      }, 2000)
+    } catch (error) {
+      console.error("Registration error:", error)
+      toast({
+        title: "Registration Failed",
+        description: error instanceof Error ? error.message : "Failed to create profile. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const renderStep = () => {
@@ -150,11 +244,11 @@ export default function CameramanRegistration() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="full_name">Full Name</Label>
                 <Input
-                  id="name"
-                  value={data.name}
-                  onChange={(e) => handleChange("name", e.target.value)}
+                  id="full_name"
+                  value={data.full_name}
+                  onChange={(e) => handleChange("full_name", e.target.value)}
                   placeholder="John Doe"
                 />
               </div>
@@ -169,12 +263,12 @@ export default function CameramanRegistration() {
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone_number">Phone Number</Label>
                 <Input
-                  id="phone"
+                  id="phone_number"
                   type="tel"
-                  value={data.phone}
-                  onChange={(e) => handleChange("phone", e.target.value)}
+                  value={data.phone_number}
+                  onChange={(e) => handleChange("phone_number", e.target.value)}
                   placeholder="+1 (555) 987-6543"
                 />
               </div>
@@ -199,46 +293,58 @@ export default function CameramanRegistration() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="experience">Years of Experience</Label>
-                <Select onValueChange={(value) => handleChange("experience", value)} value={data.experience}>
+                <Label htmlFor="experience_years">Years of Experience</Label>
+                <Select onValueChange={(value) => handleChange("experience_years", parseInt(value))} value={data.experience_years.toString()}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select years of experience" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0-2">0-2 years</SelectItem>
-                    <SelectItem value="3-5">3-5 years</SelectItem>
-                    <SelectItem value="6-10">6-10 years</SelectItem>
-                    <SelectItem value="10+">10+ years</SelectItem>
+                    <SelectItem value="0">0-2 years</SelectItem>
+                    <SelectItem value="3">3-5 years</SelectItem>
+                    <SelectItem value="6">6-10 years</SelectItem>
+                    <SelectItem value="10">10+ years</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {data.type === "elite" && (
-                <div>
-                  <Label htmlFor="rate">Hourly Rate (USD)</Label>
-                  <Input
-                    id="rate"
-                    type="number"
-                    value={data.rate}
-                    onChange={(e) => handleChange("rate", e.target.value)}
-                    placeholder="100"
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label htmlFor="hourly_rate">Hourly Rate (USD)</Label>
+                    <Input
+                      id="hourly_rate"
+                      type="number"
+                      value={data.hourly_rate}
+                      onChange={(e) => handleChange("hourly_rate", parseFloat(e.target.value) || 0)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="daily_rate">Daily Rate (USD) - Optional</Label>
+                    <Input
+                      id="daily_rate"
+                      type="number"
+                      value={data.daily_rate || ""}
+                      onChange={(e) => handleChange("daily_rate", parseFloat(e.target.value) || 0)}
+                      placeholder="800"
+                    />
+                  </div>
+                </>
               )}
               <div>
-                <Label>Specialties</Label>
+                <Label>Specializations</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {specialties.map((specialty) => (
                     <div key={specialty} className="flex items-center">
                       <Checkbox
                         id={specialty}
-                        checked={data.specialties.includes(specialty)}
+                        checked={data.specializations.includes(specialty)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            handleChange("specialties", [...data.specialties, specialty])
+                            handleChange("specializations", [...data.specializations, specialty])
                           } else {
                             handleChange(
-                              "specialties",
-                              data.specialties.filter((s) => s !== specialty),
+                              "specializations",
+                              data.specializations.filter((s) => s !== specialty),
                             )
                           }
                         }}
@@ -262,12 +368,12 @@ export default function CameramanRegistration() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="equipment">Equipment</Label>
+                <Label htmlFor="equipment">Equipment (comma-separated)</Label>
                 <Input
                   id="equipment"
-                  value={data.equipment}
-                  onChange={(e) => handleChange("equipment", e.target.value)}
-                  placeholder="Canon EOS R5, 24-70mm f/2.8 lens"
+                  value={data.equipment.join(", ")}
+                  onChange={(e) => handleChange("equipment", e.target.value.split(", ").map(item => item.trim()).filter(item => item))}
+                  placeholder="Canon EOS R5, 24-70mm f/2.8 lens, Professional lighting"
                 />
               </div>
               <div>
@@ -368,11 +474,11 @@ export default function CameramanRegistration() {
                 />
               </div>
               <div>
-                <Label htmlFor="celebrityClients">Celebrity Clients</Label>
+                <Label htmlFor="celebrity_clients">Celebrity Clients</Label>
                 <Input
-                  id="celebrityClients"
-                  value={data.celebrityClients}
-                  onChange={(e) => handleChange("celebrityClients", e.target.value)}
+                  id="celebrity_clients"
+                  value={data.celebrity_clients || ""}
+                  onChange={(e) => handleChange("celebrity_clients", e.target.value)}
                   placeholder="List any notable clients you've worked with"
                 />
               </div>

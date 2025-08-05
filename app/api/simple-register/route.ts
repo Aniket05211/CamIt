@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
 
   // 4. Parse the body
   const data = await req.json()
+  console.log("Received registration data:", JSON.stringify(data, null, 2))
 
   // 5. Update user type in users table
   const { data: updatedUser, error: updateError } = await supabase
@@ -57,58 +58,108 @@ export async function POST(req: NextRequest) {
   }
 
   // 6. Insert into the correct profile table
+  let insertedProfile = null; // Declare variable in proper scope
+  
   if (data.user_type === "elite" || data.user_type === "realtime") {
+    // Map the data from connect-with-us page to match photographer_profiles schema
+    // Only include fields that are actually provided in the form
     const photographerProfile = {
       user_id: user.id,
-      photographer_type: data.type,
-      bio: data.bio ?? null,
-      experience_years: data.experience_years ?? null,
-      hourly_rate: data.hourly_rate ?? null,
-      daily_rate: data.daily_rate ?? null,
+      photographer_type: data.type || data.user_type, // Ensure we have a photographer type
+      bio: data.bio || "",
+      experience_years: data.experience_years || 0,
+      hourly_rate: data.hourly_rate || 0,
+      // Only include fields that exist in the database and are provided
       specializations: safeArray(data.specializations),
       equipment: safeArray(data.equipment),
-      portfolio_urls: safeArray(data.portfolio_urls),
-      availability_status: data.availability_status ?? "available",
-      rating: data.rating ?? 0.0,
-      total_reviews: data.total_reviews ?? 0,
-      location_city: data.location_city ?? null,
-      location_state: data.location_state ?? null,
-      location_country: data.location_country ?? null,
-      travel_radius: data.travel_radius ?? null,
+      // Use Time_availibilty (note the typo in database column name) for time-based availability
+      Time_availibilty: safeArray(data.availability),
       languages: safeArray(data.languages),
-      certifications: safeArray(data.certifications),
-      availability: safeArray(data.availability),
-      awards: data.awards ?? null,
-      celebrity_clients: data.celebrity_clients ?? null,
-      portfolio: safeArray(data.portfolio),
-      is_available: data.is_available ?? true,
-      is_verified: data.is_verified ?? false,
-      location: data.location ?? null,
-      specialties: safeArray(data.specialties),
+      awards: data.awards || "",
+      celebrity_clients: data.celebrity_clients || "",
+      location: data.location || "",
+      // Set default values for required fields
+      rating: 0,
+      total_reviews: 0,
+      is_available: true,
+      is_verified: false,
+      // Optional fields that might be provided
+      ...(data.location_city && { location_city: data.location_city }),
+      ...(data.location_state && { location_state: data.location_state }),
+      ...(data.location_country && { location_country: data.location_country }),
+      ...(data.daily_rate && { daily_rate: data.daily_rate }),
     }
+    // Validate required fields
+    if (!photographerProfile.user_id || !photographerProfile.photographer_type) {
+      console.error("Missing required fields:", { user_id: photographerProfile.user_id, photographer_type: photographerProfile.photographer_type })
+      return NextResponse.json({ 
+        error: "Missing required fields for photographer profile",
+        missingFields: {
+          user_id: !photographerProfile.user_id,
+          photographer_type: !photographerProfile.photographer_type
+        }
+      }, { status: 400 })
+    }
+    
     console.log("Inserting into photographer_profiles:", photographerProfile)
-    const { error: profileError } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("photographer_profiles")
       .insert([photographerProfile])
+      .select()
+    
     if (profileError) {
       console.error("Photographer profile insert error:", profileError)
-      return NextResponse.json({ error: "Failed to create photographer profile", details: profileError }, { status: 500 })
+      console.error("Error details:", JSON.stringify(profileError, null, 2))
+      return NextResponse.json({ 
+        error: "Failed to create photographer profile", 
+        details: profileError,
+        attemptedData: photographerProfile 
+      }, { status: 500 })
     }
+    
+    insertedProfile = profileData; // Assign to the outer scope variable
+    console.log("Successfully inserted profile:", insertedProfile)
   } else if (data.user_type === "editor") {
-    // TODO: Update this object to match your editor_profiles schema!
+    // Map the data from connect-with-us page to match editor_profiles schema
     const editorProfile = {
       user_id: user.id,
-      // ...add only fields that exist in your editor_profiles table...
+      project_rate: parseFloat(data.rate) || 0,
+      hourly_rate: parseFloat(data.sampleRate) || 0,
+      experience_years: parseInt(data.experience?.replace(/\D/g, '')) || 0,
+      turnaround_time: parseInt(data.turnaround) || 24,
+      bio: data.bio || "",
+      specializations: safeArray(data.specialties),
+      software_skills: safeArray(data.software),
+      languages: safeArray(data.languages),
+      availability_status: "available",
+      rating: 0,
+      total_reviews: 0,
+      portfolio_urls: [], // Will be populated later
     }
+    
     console.log("Inserting into editor_profiles:", editorProfile)
-    const { error: profileError } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("editor_profiles")
       .insert([editorProfile])
+      .select()
+    
     if (profileError) {
       console.error("Editor profile insert error:", profileError)
-      return NextResponse.json({ error: "Failed to create editor profile", details: profileError }, { status: 500 })
+      console.error("Error details:", JSON.stringify(profileError, null, 2))
+      return NextResponse.json({ 
+        error: "Failed to create editor profile", 
+        details: profileError,
+        attemptedData: editorProfile 
+      }, { status: 500 })
     }
+    
+    insertedProfile = profileData;
+    console.log("Successfully inserted editor profile:", insertedProfile)
   }
 
-  return NextResponse.json({ success: true, user: { ...user, user_type: data.user_type } })
+  return NextResponse.json({ 
+    success: true, 
+    user: { ...user, user_type: data.user_type },
+    profile: insertedProfile ? insertedProfile[0] : null
+  })
 }
