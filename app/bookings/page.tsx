@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Upload, X } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, MapPin, User, DollarSign, CheckCircle, XCircle, AlertCircle, Star, Heart, Building, Camera, Video, Globe, Users } from "lucide-react"
+import { Calendar, Clock, MapPin, User, DollarSign, CheckCircle, XCircle, AlertCircle, Star, Heart, Building, Camera, Video, Globe, Users, Edit2, CreditCard } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 // Original bookings interface (cameraman bookings)
@@ -82,10 +82,56 @@ interface BookingTrip {
   notes?: string
 }
 
+// Editor bookings interface
+interface EditorBooking {
+  id: string
+  client_id: string
+  editor_id: string
+  service_type: string
+  project_title: string
+  project_description?: string
+  number_of_files: number
+  deadline_date: string
+  deadline_time?: string
+  urgency_level: string
+  budget_min?: number
+  budget_max?: number
+  special_requirements?: string
+  file_upload_urls?: string[]
+  status: string
+  payment_status: string
+  estimated_price?: number
+  final_price?: number
+  accepted_at?: string
+  rejected_at?: string
+  rejection_reason?: string
+  started_at?: string
+  completed_at?: string
+  editor_notes?: string
+  client_notes?: string
+  created_at: string
+  updated_at: string
+  client?: {
+    id: string
+    full_name: string
+    email: string
+    phone_number?: string
+  }
+  editor?: {
+    id: string
+    user?: {
+      id: string
+      full_name: string
+      email: string
+    }
+  }
+}
+
 export default function BookingsPage() {
   const [originalBookings, setOriginalBookings] = useState<Booking[]>([])
   const [eventBookings, setEventBookings] = useState<BookingEvent[]>([])
   const [tripBookings, setTripBookings] = useState<BookingTrip[]>([])
+  const [editorBookings, setEditorBookings] = useState<EditorBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("original")
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false)
@@ -108,9 +154,40 @@ export default function BookingsPage() {
   })
   const [submittingReview, setSubmittingReview] = useState(false)
   const [submittingTripReview, setSubmittingTripReview] = useState(false)
+  const [submittingEditorReview, setSubmittingEditorReview] = useState(false)
   const [uploadingImages, setUploadingImages] = useState(false)
+  const [isEditorReviewDialogOpen, setIsEditorReviewDialogOpen] = useState(false)
+  const [selectedEditorBooking, setSelectedEditorBooking] = useState<EditorBooking | null>(null)
+  const [editorReviewData, setEditorReviewData] = useState({
+    rating: 5,
+    review_text: "",
+    project_type: "",
+    turnaround_time_rating: 5,
+    communication_rating: 5,
+    quality_rating: 5
+  })
+  const [reviewedBookings, setReviewedBookings] = useState<Set<string>>(new Set())
   const { toast } = useToast()
   const router = useRouter()
+
+  // Function to check if a booking has been reviewed
+  const isBookingReviewed = (bookingId: string) => {
+    return reviewedBookings.has(bookingId)
+  }
+
+  // Function to fetch reviewed bookings for the current user
+  const fetchReviewedBookings = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/editor-reviews?reviewer_id=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        const reviewedBookingIds = new Set(data.reviews?.map((review: any) => review.booking_id) || [])
+        setReviewedBookings(reviewedBookingIds)
+      }
+    } catch (error) {
+      console.error("Error fetching reviewed bookings:", error)
+    }
+  }
 
   const fetchBookings = async () => {
     try {
@@ -194,6 +271,28 @@ export default function BookingsPage() {
         const errorText = await tripResponse.text()
         console.error("Trip bookings error details:", errorText)
       }
+
+      console.log("=== FETCHING EDITOR BOOKINGS ===")
+      // Fetch editor bookings
+      const editorUrl = `/api/bookings/editors?client_id=${currentUserId}`
+      console.log("Editor bookings URL:", editorUrl)
+      
+      const editorResponse = await fetch(editorUrl)
+      console.log("Editor bookings response status:", editorResponse.status)
+      console.log("Editor bookings response headers:", editorResponse.headers)
+      
+      if (editorResponse.ok) {
+        const editorData = await editorResponse.json()
+        console.log("Editor bookings data:", editorData)
+        setEditorBookings(editorData.bookings || [])
+      } else {
+        console.error("Editor bookings API error:", editorResponse.status)
+        const errorText = await editorResponse.text()
+        console.error("Editor bookings error details:", errorText)
+      }
+      
+      // Fetch reviewed bookings for the current user
+      await fetchReviewedBookings(currentUserId)
       
       console.log("=== FETCH BOOKINGS COMPLETED ===")
     } catch (error) {
@@ -334,6 +433,8 @@ export default function BookingsPage() {
         throw new Error("Failed to submit review")
       }
 
+      const result = await response.json()
+      
       toast({
         title: "Success",
         description: "Your review has been submitted successfully!",
@@ -354,6 +455,144 @@ export default function BookingsPage() {
       })
     } finally {
       setSubmittingReview(false)
+    }
+  }
+
+  // Editor payment handler
+  const handleEditorPayment = (booking: EditorBooking) => {
+    try {
+      const amount = booking.final_price || booking.estimated_price
+      if (!amount) {
+        toast({
+          title: "Error",
+          description: "No price available for this booking.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Navigate to payment page for editor booking
+      const paymentUrl = `/payment?booking_id=${booking.id}&type=editor&amount=${amount}`
+      router.push(paymentUrl)
+    } catch (error) {
+      console.error("Error handling editor payment:", error)
+      toast({
+        title: "Error",
+        description: "Failed to process payment.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Editor review handler
+  const handleEditorReview = (booking: EditorBooking) => {
+    setSelectedEditorBooking(booking)
+    
+    // Set default review text based on booking status
+    let defaultReviewText = ""
+    if (booking.status === "cancelled") {
+      defaultReviewText = `The editor was professional in their communication. ${booking.rejection_reason ? `The reason for cancellation was: ${booking.rejection_reason}.` : ''}`
+    } else if (booking.status === "completed") {
+      defaultReviewText = `The editor delivered high-quality work for my ${booking.service_type} editing project. The communication was clear and they met the deadline.`
+    }
+    
+    setEditorReviewData({
+      rating: 5,
+      review_text: defaultReviewText,
+      project_type: booking.service_type,
+      turnaround_time_rating: 5,
+      communication_rating: 5,
+      quality_rating: 5
+    })
+    setIsEditorReviewDialogOpen(true)
+  }
+
+  // Submit editor review
+  const handleSubmitEditorReview = async () => {
+    if (!selectedEditorBooking) return
+
+    try {
+      setSubmittingEditorReview(true)
+      
+      // Get current user ID
+      const storedUser = localStorage.getItem("camit_user")
+      const userData = storedUser ? JSON.parse(storedUser) : null
+      const currentUserId = userData?.id
+
+      if (!currentUserId) {
+        throw new Error("User not found")
+      }
+
+      // Debug: Log the values being sent
+      console.log("=== EDITOR REVIEW DEBUG ===")
+      console.log("selectedEditorBooking:", selectedEditorBooking)
+      console.log("editor_id:", selectedEditorBooking.editor_id)
+      console.log("currentUserId:", currentUserId)
+      console.log("editorReviewData:", editorReviewData)
+      console.log("rating:", editorReviewData.rating)
+
+      const requestBody = {
+        editor_id: selectedEditorBooking.editor?.id || selectedEditorBooking.editor_id,
+        reviewer_id: currentUserId,
+        booking_id: selectedEditorBooking.id,
+        rating: editorReviewData.rating,
+        review_text: editorReviewData.review_text,
+        project_type: editorReviewData.project_type,
+        turnaround_time_rating: editorReviewData.turnaround_time_rating,
+        communication_rating: editorReviewData.communication_rating,
+        quality_rating: editorReviewData.quality_rating,
+      }
+
+      console.log("Request body:", requestBody)
+
+      const response = await fetch("/api/editor-reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to submit review")
+      }
+
+      const result = await response.json()
+      
+      toast({
+        title: "Review Submitted",
+        description: "Your review has been submitted successfully!",
+      })
+
+      // Add the booking to reviewed bookings set
+      if (selectedEditorBooking) {
+        setReviewedBookings(prev => new Set([...prev, selectedEditorBooking.id]))
+      }
+
+      setIsEditorReviewDialogOpen(false)
+      setSelectedEditorBooking(null)
+      setEditorReviewData({
+        rating: 5,
+        review_text: "",
+        project_type: "",
+        turnaround_time_rating: 5,
+        communication_rating: 5,
+        quality_rating: 5
+      })
+
+      // Refresh bookings to update review status
+      fetchBookings()
+
+    } catch (error) {
+      console.error("Error submitting editor review:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit review. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmittingEditorReview(false)
     }
   }
 
@@ -627,10 +866,11 @@ export default function BookingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="original">Photographer Bookings ({originalBookings.length})</TabsTrigger>
           <TabsTrigger value="events">Event Bookings ({eventBookings.length})</TabsTrigger>
           <TabsTrigger value="trips">Trip Bookings ({tripBookings.length})</TabsTrigger>
+          <TabsTrigger value="editors">Editor Bookings ({editorBookings.length})</TabsTrigger>
         </TabsList>
 
         {/* Original Photographer Bookings - Using Original Design */}
@@ -672,7 +912,11 @@ export default function BookingsPage() {
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4 text-gray-500" />
                     <span className="text-sm text-gray-600">
-                      {new Date(booking.event_date).toLocaleDateString()}
+                      {new Date(booking.event_date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
                     </span>
                   </div>
                   
@@ -788,15 +1032,27 @@ export default function BookingsPage() {
 
                 <div className="border-t pt-4">
                   <p className="text-xs text-gray-500">
-                    Requested on {new Date(booking.created_at).toLocaleDateString()}
+                    Requested on {new Date(booking.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })}
                     {booking.accepted_at && (
                       <span className="ml-4">
-                        Accepted on {new Date(booking.accepted_at).toLocaleDateString()}
+                        Accepted on {new Date(booking.accepted_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
                       </span>
                     )}
                     {booking.rejected_at && (
                       <span className="ml-4">
-                        Rejected on {new Date(booking.rejected_at).toLocaleDateString()}
+                        Rejected on {new Date(booking.rejected_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
                       </span>
                     )}
                   </p>
@@ -836,7 +1092,11 @@ export default function BookingsPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-gray-500" />
-                            <span>{new Date(booking.event_date).toLocaleDateString()}</span>
+                            <span>{new Date(booking.event_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-gray-500" />
@@ -953,7 +1213,15 @@ export default function BookingsPage() {
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-gray-500" />
                             <span>
-                              {new Date(booking.start_date).toLocaleDateString()} - {new Date(booking.end_date).toLocaleDateString()}
+                              {new Date(booking.start_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })} - {new Date(booking.end_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1061,6 +1329,141 @@ export default function BookingsPage() {
                               </Badge>
                             </div>
                           </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Editor Bookings */}
+        <TabsContent value="editors" className="space-y-4">
+          {editorBookings.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Edit2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Editor Bookings</h3>
+                <p className="text-gray-600">You haven't made any editor bookings yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {editorBookings.map((booking) => (
+                <Card key={booking.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Edit2 className="w-4 h-4" />
+                          <h3 className="font-semibold">{booking.project_title}</h3>
+                          <span className="text-gray-500">•</span>
+                          <span className="text-sm capitalize">{booking.service_type} editing</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-gray-500" />
+                            <span>{booking.editor?.user?.full_name || "Editor"}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <span>
+                              Due: {new Date(booking.deadline_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                              {booking.deadline_time && ` at ${booking.deadline_time}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Upload className="w-4 h-4 text-gray-500" />
+                            <span>{booking.number_of_files} files</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-gray-500" />
+                            <span>
+                              {booking.budget_min && booking.budget_max 
+                                ? `$${booking.budget_min} - $${booking.budget_max}`
+                                : booking.estimated_price 
+                                  ? `$${booking.estimated_price}`
+                                  : "Price TBD"
+                              }
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {booking.project_description && (
+                          <div className="mt-2 text-sm text-gray-600">
+                            <strong>Description:</strong> {booking.project_description}
+                          </div>
+                        )}
+
+                        {booking.special_requirements && (
+                          <div className="mt-2 text-sm text-gray-600">
+                            <strong>Requirements:</strong> {booking.special_requirements}
+                          </div>
+                        )}
+
+                        {booking.rejection_reason && (
+                          <div className="mt-2 text-sm text-red-600">
+                            <strong>Rejection Reason:</strong> {booking.rejection_reason}
+                          </div>
+                        )}
+
+                        {booking.editor_notes && (
+                          <div className="mt-2 text-sm text-blue-600">
+                            <strong>Editor Notes:</strong> {booking.editor_notes}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className={getStatusColor(booking.status)}>
+                          {getStatusIcon(booking.status)}
+                          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                        </Badge>
+                        
+                        {booking.payment_status && (
+                          <Badge className={getStatusColor(booking.payment_status)}>
+                            {booking.payment_status.charAt(0).toUpperCase() + booking.payment_status.slice(1)}
+                          </Badge>
+                        )}
+                        
+                        {/* Payment Button for Accepted Bookings */}
+                        {booking.status === "accepted" && booking.payment_status === "pending" && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleEditorPayment(booking)}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CreditCard className="w-4 h-4 mr-1" />
+                            Pay ${booking.final_price || booking.estimated_price}
+                          </Button>
+                        )}
+                        
+                        {/* Review Button for Completed or Cancelled Bookings */}
+                        {(booking.status === "completed" || booking.status === "cancelled") && (
+                          isBookingReviewed(booking.id) ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Reviewed
+                            </Badge>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleEditorReview(booking)}
+                              className={booking.status === "cancelled" ? "border-orange-200 text-orange-700 hover:bg-orange-50" : ""}
+                            >
+                              <Star className="w-4 h-4 mr-1" />
+                              Write Review {booking.status === "cancelled" && "(Cancelled)"}
+                            </Button>
+                          )
+                        )}
                         )}
                       </div>
                     </div>
@@ -1391,6 +1794,139 @@ export default function BookingsPage() {
               className="bg-purple-600 hover:bg-purple-700"
             >
               {submittingTripReview ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Editor Review Dialog */}
+      <Dialog open={isEditorReviewDialogOpen} onOpenChange={setIsEditorReviewDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Write a Review for Your Editor</DialogTitle>
+            <DialogDescription>
+              {selectedEditorBooking?.status === "cancelled" 
+                ? "Share your experience with the editor, even though the booking was cancelled. Your feedback helps other clients make informed decisions."
+                : "Share your experience with the editor. Your feedback helps other clients make informed decisions."
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Overall Rating */}
+            <div>
+              <Label className="text-sm font-medium">Overall Rating</Label>
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setEditorReviewData({ ...editorReviewData, rating: star })}
+                    className={`text-2xl ${star <= editorReviewData.rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                  >
+                    ★
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-gray-600">
+                  {editorReviewData.rating} out of 5
+                </span>
+              </div>
+            </div>
+
+            {/* Quality Rating */}
+            <div>
+              <Label className="text-sm font-medium">Quality of Work</Label>
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setEditorReviewData({ ...editorReviewData, quality_rating: star })}
+                    className={`text-xl ${star <= editorReviewData.quality_rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                  >
+                    ★
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-gray-600">
+                  {editorReviewData.quality_rating} out of 5
+                </span>
+              </div>
+            </div>
+
+            {/* Communication Rating */}
+            <div>
+              <Label className="text-sm font-medium">Communication</Label>
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setEditorReviewData({ ...editorReviewData, communication_rating: star })}
+                    className={`text-xl ${star <= editorReviewData.communication_rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                  >
+                    ★
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-gray-600">
+                  {editorReviewData.communication_rating} out of 5
+                </span>
+              </div>
+            </div>
+
+            {/* Turnaround Time Rating */}
+            <div>
+              <Label className="text-sm font-medium">Turnaround Time</Label>
+              <div className="flex items-center gap-2 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setEditorReviewData({ ...editorReviewData, turnaround_time_rating: star })}
+                    className={`text-xl ${star <= editorReviewData.turnaround_time_rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                  >
+                    ★
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-gray-600">
+                  {editorReviewData.turnaround_time_rating} out of 5
+                </span>
+              </div>
+            </div>
+
+            {/* Review Text */}
+            <div>
+              <Label htmlFor="editor-review" className="text-sm font-medium">
+                Your Review
+              </Label>
+              <Textarea
+                id="editor-review"
+                placeholder={
+                  selectedEditorBooking?.status === "cancelled"
+                    ? "Share your experience with the editor. How was the communication? Were they professional? What was the reason for cancellation?"
+                    : "Share your experience with the editor. How was the quality of work? Was the communication clear? Did they meet the deadline?"
+                }
+                value={editorReviewData.review_text}
+                onChange={(e) => setEditorReviewData({ ...editorReviewData, review_text: e.target.value })}
+                className="mt-2"
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditorReviewDialogOpen(false)}
+              disabled={submittingEditorReview}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitEditorReview}
+              disabled={submittingEditorReview || !editorReviewData.review_text.trim()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {submittingEditorReview ? "Submitting..." : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>

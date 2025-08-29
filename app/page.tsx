@@ -85,6 +85,8 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [carouselImages.length])
 
+
+
   const nextSlide = () => {
     setCurrentSlide((prevSlide) => (prevSlide + 1) % carouselImages.length)
   }

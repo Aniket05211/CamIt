@@ -347,18 +347,7 @@ export default function BookTrip() {
         // Continue with localStorage data if API fails
       }
       
-      // Send user data to debug endpoint
-      try {
-        const debugResponse = await fetch("/api/debug-user-data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userData: completeUserData })
-        })
-        const debugResult = await debugResponse.json()
-        console.log("Debug result:", debugResult)
-      } catch (debugError) {
-        console.error("Debug endpoint error:", debugError)
-      }
+
       
       // Validate user data
       if (!completeUserData.id) {

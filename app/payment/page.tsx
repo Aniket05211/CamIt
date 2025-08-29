@@ -84,7 +84,47 @@ interface BookingTrip {
   notes?: string
 }
 
-type Booking = BookingOriginal | BookingEvent | BookingTrip
+interface EditorBooking {
+  id: string
+  client_id: string
+  editor_id: string
+  service_type: string
+  project_title: string
+  project_description?: string
+  number_of_files: number
+  deadline_date: string
+  deadline_time?: string
+  urgency_level: string
+  budget_min?: number
+  budget_max?: number
+  special_requirements?: string
+  file_upload_urls?: string[]
+  status: string
+  payment_status: string
+  estimated_price?: number
+  final_price?: number
+  accepted_at?: string
+  rejected_at?: string
+  rejection_reason?: string
+  started_at?: string
+  completed_at?: string
+  editor_notes?: string
+  client_notes?: string
+  created_at: string
+  updated_at: string
+  client?: {
+    id: string
+    full_name: string
+    email: string
+  }
+  editor?: {
+    id: string
+    full_name: string
+    email: string
+  }
+}
+
+type Booking = BookingOriginal | BookingEvent | BookingTrip | EditorBooking
 
 interface PaymentForm {
   cardNumber: string
@@ -168,6 +208,9 @@ export default function PaymentPage() {
       } else if (bookingType === "trip") {
         apiUrl = `/api/bookings/trips/${bookingId}`
         console.log("Fetching from booking_trip table")
+      } else if (bookingType === "editor") {
+        apiUrl = `/api/bookings/editors/${bookingId}`
+        console.log("Fetching from editor_bookings table")
       } else {
         throw new Error(`Invalid booking type: ${bookingType}`)
       }
@@ -281,6 +324,13 @@ export default function PaymentPage() {
       console.log("Using estimated_price/budget for trip:", amount)
       return amount
     }
+
+    // For editor bookings, use final_price or estimated_price
+    if ('project_title' in booking) {
+      const amount = booking.final_price || booking.estimated_price || 150
+      console.log("Using final_price/estimated_price for editor:", amount)
+      return amount
+    }
     
     console.log("No valid payment amount found, returning 500 as default")
     return 500
@@ -350,13 +400,16 @@ export default function PaymentPage() {
         transaction_id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       }
 
+      // Use different payment API for editor bookings
+      const paymentApiUrl = bookingType === "editor" ? "/api/editor-payments" : "/api/payments"
+
       console.log("=== PAYMENT DATA DEBUG ===")
       console.log("Booking Type from URL:", bookingType)
       console.log("Booking Type type:", typeof bookingType)
       console.log("Payment data being sent:", paymentData)
       console.log("=== END PAYMENT DATA DEBUG ===")
 
-      const response = await fetch("/api/payments", {
+      const response = await fetch(paymentApiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -432,7 +485,11 @@ export default function PaymentPage() {
               Your payment has been processed successfully. You will receive a confirmation email shortly.
             </p>
             <div className="space-y-2 text-sm text-gray-500">
-              <p>Booking: {'event_type' in booking ? `${booking.event_type} Event` : `${booking.destination} Trip`}</p>
+              <p>Booking: {
+                'event_type' in booking ? `${booking.event_type} Event` : 
+                'project_title' in booking ? `${booking.project_title} (Editor)` :
+                `${booking.destination} Trip`
+              }</p>
               <p>Amount: ${calculatePaymentAmount(booking)}</p>
               <p>Status: Payment Successful</p>
             </div>

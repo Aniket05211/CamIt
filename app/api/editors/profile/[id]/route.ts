@@ -101,6 +101,8 @@ export async function POST(
         twitter_handle: body.twitter_handle || "",
         youtube_handle: body.youtube_handle || "",
         facebook_handle: body.facebook_handle || "",
+        awards: body.awards || [],
+        profile_urls: body.profile_urls || "",
         rating: 0,
         total_reviews: 0
       })
@@ -179,6 +181,8 @@ export async function PUT(
         twitter_handle: body.twitter_handle,
         youtube_handle: body.youtube_handle,
         facebook_handle: body.facebook_handle,
+        awards: body.awards,
+        profile_urls: body.profile_urls,
         updated_at: new Date().toISOString()
       })
       .eq("user_id", userId)

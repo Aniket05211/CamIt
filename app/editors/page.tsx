@@ -505,6 +505,7 @@ const EditorCard = ({ editor, onPortfolioClick }) => {
           alt={editor.name}
           layout="fill"
           objectFit="cover"
+          objectPosition="center top"
           className="transition-transform duration-300 hover:scale-105"
           onError={(e) => {
             e.currentTarget.src = "/placeholder.svg?height=300&width=300"
@@ -518,22 +519,33 @@ const EditorCard = ({ editor, onPortfolioClick }) => {
         <div className="mb-4">
           <h4 className="text-sm font-semibold text-gray-500 mb-2">Price Range</h4>
           <div className="flex items-center">
-            <span className="text-lg font-bold">{editor.priceRange}</span>
-            <span className="ml-2 text-sm text-gray-500">Sample: ${editor.pricing.sample}</span>
+            <span className="text-lg font-bold">${editor.fullServiceRate || editor.pricing?.full || "75-150"}</span>
           </div>
         </div>
 
         <div className="mb-4">
           <div className="flex items-center mb-2">
             <div className="flex">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-4 w-4 ${i < Math.floor(editor.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
-                />
-              ))}
+              {[...Array(5)].map((_, i) => {
+                const rating = typeof editor.rating === 'number' ? editor.rating : parseFloat(editor.rating) || 0;
+                const isFilled = i < Math.floor(rating);
+                const isHalfFilled = i === Math.floor(rating) && rating % 1 >= 0.5;
+                
+                return (
+                  <Star
+                    key={i}
+                    className={`h-4 w-4 ${
+                      isFilled 
+                        ? "text-yellow-400 fill-yellow-400" 
+                        : isHalfFilled 
+                        ? "text-yellow-400 fill-yellow-400" 
+                        : "text-gray-300"
+                    }`}
+                  />
+                );
+              })}
             </div>
-            <span className="ml-2 text-sm font-medium">{editor.rating}</span>
+            <span className="ml-2 text-sm font-medium">{typeof editor.rating === 'number' ? editor.rating.toFixed(1) : editor.rating}</span>
             <span className="ml-1 text-sm text-muted-foreground">({editor.reviews} reviews)</span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -543,11 +555,62 @@ const EditorCard = ({ editor, onPortfolioClick }) => {
                 className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
               >
                 <Award className="w-3 h-3 mr-1" />
-                {award}
+                {typeof award === 'string' ? award : `${award.title} ${award.year ? `(${award.year})` : ''}`}
               </span>
             ))}
           </div>
         </div>
+
+        {/* Social Media Handles */}
+        {(editor.instagram_handle || editor.twitter_handle || editor.youtube_handle || editor.facebook_handle) && (
+          <div className="mb-4">
+            <h4 className="text-sm font-semibold text-gray-500 mb-2">Social Media</h4>
+            <div className="flex flex-wrap gap-2">
+              {editor.instagram_handle && (
+                <a
+                  href={`https://instagram.com/${editor.instagram_handle.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-pink-100 text-pink-800 hover:bg-pink-200"
+                >
+                  Instagram
+                </a>
+              )}
+              {editor.twitter_handle && (
+                <a
+                  href={`https://twitter.com/${editor.twitter_handle.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  Twitter
+                </a>
+              )}
+              {editor.youtube_handle && (
+                <a
+                  href={`https://youtube.com/${editor.youtube_handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200"
+                >
+                  YouTube
+                </a>
+              )}
+              {editor.facebook_handle && (
+                <a
+                  href={`https://facebook.com/${editor.facebook_handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  Facebook
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+
 
         <div className="flex justify-between items-center">
           <div className="flex items-center">
@@ -570,6 +633,8 @@ const EditorCard = ({ editor, onPortfolioClick }) => {
 const PortfolioModal = ({ editor, isOpen, onClose }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [showContactForm, setShowContactForm] = useState(null)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState("portfolio")
 
   if (!isOpen || !editor) return null
@@ -582,6 +647,108 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
     setCurrentImageIndex((prev) => (prev - 1 + editor.portfolio.length) % editor.portfolio.length)
   }
 
+  const handleFileUpload = (e) => {
+    console.log("File upload triggered:", e.target.files)
+    const files = Array.from(e.target.files)
+    console.log("Selected files:", files)
+    setUploadedFiles(files)
+  }
+
+  const handleEditorBookingSubmit = async (e) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      // Get user from localStorage
+      const storedUser = localStorage.getItem("camit_user")
+      if (!storedUser) {
+        alert("Please log in to book an editor")
+        return
+      }
+
+      const userData = JSON.parse(storedUser)
+      const formData = new FormData(e.target)
+      
+      // Log form data for debugging
+      console.log("Form data:")
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value)
+      }
+      
+      // Get the current editor from the modal
+      const currentEditor = editor
+
+      console.log("Submitting booking for editor:", currentEditor)
+      console.log("User data:", userData)
+      console.log("Editor ID being used:", currentEditor.id)
+      console.log("User ID being sent:", currentEditor.editor_user_id)
+      console.log("Full currentEditor object:", JSON.stringify(currentEditor, null, 2))
+
+      // Check if this is sample data (numeric ID)
+      if (typeof currentEditor.id === 'number' || currentEditor.id < 1000) {
+        alert("This is sample data. Please contact support to book with a real editor.")
+        return
+      }
+
+      // Prepare booking data
+      const bookingData = {
+        client_id: userData.id,
+        user_id: currentEditor.editor_user_id, // Use the editor's user ID from users table
+        service_type: formData.get("service_type"),
+        project_title: formData.get("project_title"),
+        project_description: formData.get("project_description"),
+        number_of_files: parseInt(formData.get("number_of_files")),
+        deadline_date: formData.get("deadline_date"),
+        deadline_time: formData.get("deadline_time"),
+        urgency_level: formData.get("urgency_level"),
+        budget_min: formData.get("budget_min") ? parseFloat(formData.get("budget_min")) : null,
+        budget_max: formData.get("budget_max") ? parseFloat(formData.get("budget_max")) : null,
+        special_requirements: formData.get("special_requirements"),
+        file_upload_urls: [] // Will be populated after file upload
+      }
+
+      // Upload files if any
+      if (uploadedFiles.length > 0) {
+        const uploadPromises = uploadedFiles.map(async (file) => {
+          // For now, we'll just store file names
+          // In a real implementation, you'd upload to cloud storage
+          return file.name
+        })
+        bookingData.file_upload_urls = await Promise.all(uploadPromises)
+      }
+
+      console.log("Final booking data:", bookingData)
+      console.log("Final booking data JSON:", JSON.stringify(bookingData, null, 2))
+
+      // Submit booking
+      const response = await fetch("/api/bookings/editors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bookingData),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        alert("Booking request submitted successfully!")
+        setShowContactForm(null)
+        setUploadedFiles([])
+        // Reset form
+        e.target.reset()
+      } else {
+        const errorData = await response.json()
+        console.error("Booking submission error:", errorData)
+        alert(`Error: ${errorData.error || 'Failed to submit booking request. Please try again.'}`)
+      }
+    } catch (error) {
+      console.error("Error submitting booking:", error)
+      alert("An error occurred while submitting your booking request")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="relative bg-white rounded-xl overflow-hidden max-w-7xl w-full max-h-[90vh] flex flex-col">
@@ -592,14 +759,13 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
           <X className="w-6 h-6" />
         </button>
         <div className="flex flex-col md:flex-row h-full">
-          <div className="w-full md:w-1/2 relative">
+          <div className="w-full md:w-1/2 relative bg-gray-100 flex items-center justify-center min-h-[400px]">
             <Image
               src={editor.portfolio[currentImageIndex] || "/placeholder.svg"}
               alt={`Portfolio ${currentImageIndex + 1}`}
-              layout="responsive"
-              width={16}
-              height={9}
-              objectFit="cover"
+              layout="fill"
+              objectFit="contain"
+              className="p-4"
               onError={(e) => {
                 e.currentTarget.src = "/placeholder.svg?height=600&width=800"
               }}
@@ -621,8 +787,26 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
             </div>
           </div>
           <div className="w-full md:w-1/2 p-8 overflow-y-auto max-h-[80vh] scrollbar-hide">
-            <h2 className="text-3xl font-bold mb-4">{editor.name}</h2>
-            <p className="text-blue-600 font-medium mb-4">{editor.specialty}</p>
+            <div className="flex items-center space-x-4 mb-6">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-white shadow-lg">
+                  <Image
+                    src={editor.avatar || "/placeholder.svg"}
+                    alt={editor.name}
+                    width={64}
+                    height={64}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = "/placeholder.svg?height=64&width=64"
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold mb-1">{editor.name}</h2>
+                <p className="text-blue-600 font-medium">{editor.specialty}</p>
+              </div>
+            </div>
 
             <div className="flex mb-6 border-b">
               <button
@@ -642,6 +826,12 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
                 onClick={() => setActiveTab("about")}
               >
                 About
+              </button>
+              <button
+                className={`px-4 py-2 ${activeTab === "reviews" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-600"}`}
+                onClick={() => setActiveTab("reviews")}
+              >
+                Reviews
               </button>
               <button
                 className={`px-4 py-2 ${activeTab === "booking" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-600"}`}
@@ -707,12 +897,9 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold text-gray-500 mb-1">Price Range</h4>
-                      <p>${editor.pricing.full}</p>
+                      <p>${editor.fullServiceRate || editor.pricing?.full || "75-150"}</p>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-500 mb-1">Sample Edit</h4>
-                      <p>${editor.pricing.sample}</p>
-                    </div>
+
                     <div>
                       <h4 className="text-sm font-semibold text-gray-500 mb-1">Languages</h4>
                       <p>{editor.languages.join(", ")}</p>
@@ -727,7 +914,7 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"
                         >
                           <Award className="w-3 h-3 mr-1" />
-                          {award}
+                          {typeof award === 'string' ? award : `${award.title} ${award.year ? `(${award.year})` : ''}`}
                         </span>
                       ))}
                     </div>
@@ -796,6 +983,66 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
                 </div>
               )}
 
+              {activeTab === "reviews" && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Reviews</h3>
+                    <span className="text-sm text-gray-500">{editor.recentReviews?.length || 0} reviews</span>
+                  </div>
+                  {editor.recentReviews && editor.recentReviews.length > 0 ? (
+                    <div className="space-y-4">
+                      {editor.recentReviews.map((review, index) => (
+                        <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-blue-600 font-medium">
+                                  {review.reviewer?.full_name?.charAt(0).toUpperCase() || "A"}
+                                </span>
+                              </div>
+                              <div>
+                                <h5 className="font-medium text-gray-900">{review.reviewer?.full_name || "Anonymous"}</h5>
+                                <p className="text-sm text-gray-500">
+                                  {new Date(review.created_at).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${i < review.rating ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <p className="text-gray-700 mb-2">{review.review_text}</p>
+                          
+                          {review.project_type && (
+                            <div className="flex items-center justify-between text-sm text-gray-500">
+                              <span>Project: {review.project_type}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Star className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No reviews yet</h3>
+                      <p className="text-gray-500">This editor hasn't received any reviews yet.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === "booking" && (
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
@@ -804,48 +1051,193 @@ const PortfolioModal = ({ editor, isOpen, onClose }) => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <DollarSign className="w-5 h-5 text-gray-400" />
-                    <span>Full Service: ${editor.pricing.full}</span>
+                    <span>Full Service: ${editor.fullServiceRate || editor.pricing?.full || "75-150"}</span>
                   </div>
                   <div className="flex space-x-4">
-                    <Button onClick={() => setShowContactForm("sample")} className="flex-1" variant="outline">
-                      Request Sample
-                    </Button>
-                    <Button onClick={() => setShowContactForm("book")} className="flex-1">
+                    <Button onClick={() => setShowContactForm("book")} className="w-full">
                       Book Now
                     </Button>
                   </div>
                   {showContactForm && (
-                    <form className="space-y-4 mt-6">
+                    <form onSubmit={handleEditorBookingSubmit} className="space-y-4 mt-6">
                       <h3 className="text-xl font-semibold">
-                        {showContactForm === "sample" ? "Request a Sample" : "Book Full Service"}
+                        Book Editing Service
                       </h3>
-                      <input
-                        type="text"
-                        placeholder="Your Name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                      <input
-                        type="email"
-                        placeholder="Your Email"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        <option value="">Select Service Type</option>
-                        <option value="photo">Photo Editing</option>
-                        <option value="video">Video Editing</option>
-                      </select>
-                      <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors">
-                        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm font-medium">Drag & drop or click to upload</p>
-                        <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG, MP4 (max 100MB)</p>
+                      
+                      {/* Project Details */}
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          name="project_title"
+                          placeholder="Project Title"
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                        
+                        <select 
+                          name="service_type" 
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        >
+                          <option value="">Select Service Type</option>
+                          <option value="photo">Photo Editing</option>
+                          <option value="video">Video Editing</option>
+                          <option value="both">Photo + Video Editing</option>
+                        </select>
+                        
+                        <textarea
+                          name="project_description"
+                          placeholder="Describe what you need edited (style, requirements, etc.)"
+                          rows={3}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
                       </div>
-                      <textarea
-                        placeholder="Project Details"
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      ></textarea>
-                      <Button type="submit" className="w-full">
-                        {showContactForm === "sample" ? "Request Sample" : "Submit Booking Request"}
+
+                      {/* File Upload */}
+                      <div 
+                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                          uploadedFiles.length > 0 
+                            ? 'border-green-300 bg-green-50' 
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                        onClick={() => document.getElementById('file-upload').click()}
+                      >
+                        <Upload className={`h-8 w-8 mx-auto mb-2 ${uploadedFiles.length > 0 ? 'text-green-500' : 'text-gray-400'}`} />
+                        <p className="text-sm font-medium">
+                          {uploadedFiles.length > 0 
+                            ? `${uploadedFiles.length} file(s) selected` 
+                            : 'Click to upload files'
+                          }
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG, MP4 (max 100MB per file)</p>
+                        <input
+                          type="file"
+                          multiple
+                          accept=".jpg,.jpeg,.png,.mp4,.mov,.avi"
+                          className="hidden"
+                          id="file-upload"
+                          onChange={handleFileUpload}
+                        />
+                        <Button type="button" variant="outline" className="mt-2">
+                          Choose Files
+                        </Button>
+                        
+                        {/* Show selected files */}
+                        {uploadedFiles.length > 0 && (
+                          <div className="mt-4 text-left">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Selected files:</p>
+                            <div className="space-y-1">
+                              {uploadedFiles.map((file, index) => (
+                                <div key={index} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                                  <span>{file.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUploadedFiles(uploadedFiles.filter((_, i) => i !== index))}
+                                    className="text-red-500 hover:text-red-700"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Project Requirements */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Number of Files
+                          </label>
+                          <input
+                            type="number"
+                            name="number_of_files"
+                            min="1"
+                            defaultValue="1"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Urgency Level
+                          </label>
+                          <select 
+                            name="urgency_level"
+                            defaultValue="normal"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          >
+                            <option value="low">Low (1-2 weeks)</option>
+                            <option value="normal">Normal (3-5 days)</option>
+                            <option value="high">High (1-2 days)</option>
+                            <option value="urgent">Urgent (Same day)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Deadline */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          When do you need it by?
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <input
+                            type="date"
+                            name="deadline_date"
+                            required
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                          <input
+                            type="time"
+                            name="deadline_time"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Budget */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Budget Range (USD)
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <input
+                            type="number"
+                            name="budget_min"
+                            placeholder="Minimum"
+                            min="0"
+                            step="0.01"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                          <input
+                            type="number"
+                            name="budget_max"
+                            placeholder="Maximum"
+                            min="0"
+                            step="0.01"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Special Requirements */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Special Requirements (Optional)
+                        </label>
+                        <textarea
+                          name="special_requirements"
+                          placeholder="Any specific style preferences, color schemes, or special instructions..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </div>
+
+                      <Button type="submit" className="w-full" disabled={isSubmitting}>
+                        {isSubmitting ? "Submitting..." : "Submit Booking Request"}
                       </Button>
                     </form>
                   )}
@@ -1042,30 +1434,137 @@ export default function EditorsPage() {
           if (data.success) {
             if (data.editors && data.editors.length > 0) {
               // Transform API data to match component expectations
-              const transformedEditors = data.editors.map((editor, index) => ({
-                id: editor.id || index + 1,
-                name: editor.name,
-                avatar: editor.avatar || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=2080",
-                specialty: editor.specialties?.join(", ") || "Photo & Video Editing",
-                rating: editor.rating,
-                reviews: editor.reviews,
-                description: editor.bio || "Professional editor with years of experience.",
-                samples: [], // Will be populated from separate API
-                pricing: { 
-                  sample: parseFloat(editor.hourlyRate) || 15, 
-                  full: editor.rate || "75-150" 
-                },
-                priceRange: "$$",
-                turnaround: `${editor.turnaround} hours`,
-                awards: [], // Will be populated from separate API
-                languages: editor.languages || ["English"],
-                portfolio: editor.portfolio || [],
-                serviceTypes: editor.specialties?.includes("Video Editing") ? ["basic", "advanced"] : ["basic"],
-                type: editor.type,
-                location: editor.location,
-                experience: editor.experience,
-                isAvailable: editor.isAvailable
+              console.log("Raw editor data from API:", data.editors[0]) // Debug first editor
+              console.log("Total editors found:", data.editors.length)
+              console.log("First editor ID (user ID):", data.editors[0]?.id)
+              console.log("First editor profile ID:", data.editors[0]?.editor_profile_id)
+              const transformedEditors = await Promise.all(data.editors.map(async (editor, index) => {
+                // Fetch reviews for this editor
+                let recentReviews = []
+                let averageRating = 0
+                try {
+                  const reviewsResponse = await fetch(`/api/editor-reviews?editor_id=${editor.id}`)
+                  if (reviewsResponse.ok) {
+                    const reviewsData = await reviewsResponse.json()
+                    recentReviews = reviewsData.reviews || []
+                    
+                    // Calculate average rating from actual reviews
+                    if (recentReviews.length > 0) {
+                      const totalRating = recentReviews.reduce((sum, review) => sum + review.rating, 0)
+                      averageRating = totalRating / recentReviews.length
+
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Error fetching reviews for editor ${editor.id}:`, error)
+                }
+
+                // Fetch before/after images for this editor
+                let beforeAfterSamples = []
+                try {
+                  const imagesResponse = await fetch(`/api/editors/images?editor_id=${editor.editor_profile_id}&image_type=before_after`)
+                  if (imagesResponse.ok) {
+                    const imagesData = await imagesResponse.json()
+                    const beforeAfterImages = imagesData.images || []
+                    
+                    // Group images by description to pair before/after images
+                    const imageGroups = {}
+                    beforeAfterImages.forEach(img => {
+                      const key = img.description || 'Sample'
+                      if (!imageGroups[key]) {
+                        imageGroups[key] = { before: '', after: '', description: img.description || 'Before and after editing sample' }
+                      }
+                      if (img.title.includes('Before') || img.title.toLowerCase().includes('before')) {
+                        imageGroups[key].before = img.image_url
+                      } else if (img.title.includes('After') || img.title.toLowerCase().includes('after')) {
+                        imageGroups[key].after = img.image_url
+                      }
+                    })
+                    
+                    // Convert grouped images to sample format
+                    Object.entries(imageGroups).forEach(([key, group], idx) => {
+                      if (group.before && group.after) {
+                        beforeAfterSamples.push({
+                          id: idx + 1,
+                          before: group.before,
+                          after: group.after,
+                          type: "photo",
+                          description: group.description
+                        })
+                      }
+                    })
+                  }
+                } catch (error) {
+                  console.error(`Error fetching before/after images for editor ${editor.editor_profile_id}:`, error)
+                }
+
+                const transformedEditor = {
+                  id: editor.editor_profile_id || editor.id || index + 1,
+                  editor_user_id: editor.id, // This is the actual user ID from users table (from API)
+                  name: editor.name,
+                  avatar: editor.avatar || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=2080",
+                  specialty: editor.specialties?.join(", ") || "Photo & Video Editing",
+                  rating: parseFloat((averageRating || editor.rating || 0).toFixed(1)),
+                  reviews: recentReviews.length,
+
+
+                  description: editor.bio || "Professional editor with years of experience.",
+                  samples: beforeAfterSamples, // Before/after samples from editor_images table
+                  pricing: { 
+                    sample: parseFloat(editor.hourlyRate) || 15, 
+                    full: editor.rate || "75-150" 
+                  },
+                  fullServiceRate: editor.fullServiceRate || editor.rate || "75-150",
+                  priceRange: (() => {
+                    // Try to parse full service rate first (e.g., "75-200")
+                    let rate = 0
+                    if (editor.fullServiceRate) {
+                      const rateRange = editor.fullServiceRate.toString()
+                      const maxRate = rateRange.split('-').pop()
+                      rate = parseFloat(maxRate) || 0
+                    }
+                    
+                    // Fallback to other rate fields
+                    if (rate === 0) {
+                      rate = parseFloat(editor.rate) || parseFloat(editor.hourlyRate) || 0
+                    }
+                    
+                    console.log(`Editor ${editor.name} - FullServiceRate: ${editor.fullServiceRate}, Rate: ${editor.rate}, HourlyRate: ${editor.hourlyRate}, Final Rate: ${rate}`)
+                    
+                    if (rate > 100) return "$$$"
+                    if (rate > 50) return "$$"
+                    return "$"
+                  })(),
+                  turnaround: `${editor.turnaround} hours`,
+                  awards: editor.awards || [], // Awards from database
+                  languages: editor.languages || ["English"],
+                  portfolio: editor.portfolio || [],
+                  serviceTypes: editor.specialties?.includes("Video Editing") ? ["basic", "advanced"] : ["basic"],
+                  type: editor.type,
+                  location: editor.location,
+                  experience: editor.experience,
+                  isAvailable: editor.isAvailable,
+                  // Social media handles
+                  instagram_handle: editor.instagram_handle,
+                  twitter_handle: editor.twitter_handle,
+                  youtube_handle: editor.youtube_handle,
+                  facebook_handle: editor.facebook_handle,
+                  // Reviews
+                  recentReviews: recentReviews
+                }
+                
+                console.log("Transformed editor:", {
+                  id: editor.editor_profile_id || editor.id || index + 1,
+                  name: editor.name,
+                  editor_profile_id: editor.editor_profile_id,
+                  editor_user_id: editor.id
+                })
+                
+                return transformedEditor
               }))
+              
+              console.log("Final transformed editors:", transformedEditors)
+
               setEditors(transformedEditors)
             } else {
               // No editors found, show sample data
@@ -1324,4 +1823,5 @@ export default function EditorsPage() {
       <PortfolioModal editor={selectedEditor} isOpen={!!selectedEditor} onClose={() => setSelectedEditor(null)} />
     </div>
   )
+
 }

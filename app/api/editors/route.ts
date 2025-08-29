@@ -54,15 +54,17 @@ export async function GET(request: NextRequest) {
     // Transform the data to match frontend expectations
     const transformedEditors = editors?.map((editor) => ({
       id: editor.user?.id,
+      editor_profile_id: editor.id, // Add editor profile ID for fetching images
       name: editor.user?.full_name || "Editor",
       email: editor.user?.email || "",
       phone: editor.user?.phone_number || "",
-      avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=2080",
+      avatar: editor.profile_urls || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=2080",
       type: editor.specializations?.includes("Video Editing") ? "both" : "photo",
       location: editor.location || "",
       experience: editor.experience_years?.toString() || "0",
       rate: editor.project_rate?.toString() || "0",
       hourlyRate: editor.hourly_rate?.toString() || "0",
+      fullServiceRate: editor.full_service_rate || "75-200",
       specialties: editor.specializations || [],
       software: editor.software_skills || [],
       bio: editor.bio || "",
@@ -76,7 +78,8 @@ export async function GET(request: NextRequest) {
       instagram_handle: editor.instagram_handle || "",
       twitter_handle: editor.twitter_handle || "",
       youtube_handle: editor.youtube_handle || "",
-      facebook_handle: editor.facebook_handle || ""
+      facebook_handle: editor.facebook_handle || "",
+      awards: editor.awards || []
     })) || []
 
     return NextResponse.json({

@@ -39,50 +39,103 @@ const Navbar = () => {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const userData = getUserFromLocalStorage()
-    setUser(userData)
-    
     const initializeUser = async () => {
-      if (userData) {
-        try {
-          // Fetch complete user profile data
-          const userResponse = await fetch(`/api/cameramen/${userData.id}`)
-          if (userResponse.ok) {
-            const userProfileData = await userResponse.json()
-            if (userProfileData.success && userProfileData.data) {
-              // Update user with complete profile data, but preserve user_type from localStorage
-              setUser({
-                ...userData,
-                name: userProfileData.data.name,
-                full_name: userProfileData.data.name,
-                user_type: userData.user_type // Preserve the user_type from localStorage
-              })
+      try {
+        console.log("=== NAVBAR INIT DEBUG ===")
+        // First check session API for authenticated user
+        const sessionResponse = await fetch("/api/auth/me")
+        const sessionData = await sessionResponse.json()
+        
+        console.log("Session API response:", sessionData)
+        
+        if (sessionData.user) {
+          // User is authenticated via session
+          console.log("User found via session:", sessionData.user.email)
+          setUser(sessionData.user)
+          
+          // Fetch complete user profile data - only for cameramen
+          if (sessionData.user.user_type === 'cameraman' || sessionData.user.user_type === 'elite') {
+            const userResponse = await fetch(`/api/cameramen/${sessionData.user.id}`)
+            if (userResponse.ok) {
+              const userProfileData = await userResponse.json()
+              if (userProfileData.success && userProfileData.data) {
+                // Update user with complete profile data, but preserve user_type from session
+                setUser({
+                  ...sessionData.user,
+                  name: userProfileData.data.name,
+                  full_name: userProfileData.data.name,
+                  user_type: sessionData.user.user_type // Preserve the user_type from session
+                })
+              }
             }
           }
 
-          const profileResponse = await fetch(`/api/check-photographer-profile?user_id=${userData.id}`)
+          const profileResponse = await fetch(`/api/check-photographer-profile?user_id=${sessionData.user.id}`)
           const profileData = await profileResponse.json()
           const isPhotographer = profileData.exists
           setHasPhotographerProfile(isPhotographer)
           
           // Check for editor profile
-          const editorResponse = await fetch(`/api/editors/profile/${userData.id}`)
+          const editorResponse = await fetch(`/api/editors/profile/${sessionData.user.id}`)
           const editorData = await editorResponse.json()
           const isEditor = editorData.success && editorData.editor_profile
           setHasEditorProfile(isEditor)
           
           // Fetch user's bookings only if they are NOT a photographer or editor (client users only)
           if (!isPhotographer && !isEditor) {
-            fetchUserBookings(userData.id)
+            fetchUserBookings(sessionData.user.id)
           }
-        } catch (error) {
-          console.error("Error checking photographer profile:", error)
+        } else {
+          console.log("No user found via session, checking localStorage")
+          // Fallback to localStorage for backward compatibility
+          const userData = getUserFromLocalStorage()
+          if (userData) {
+            console.log("User found via localStorage:", userData.email)
+            setUser(userData)
+            
+            // Fetch complete user profile data - only for cameramen
+            if (userData.user_type === 'cameraman' || userData.user_type === 'elite') {
+              const userResponse = await fetch(`/api/cameramen/${userData.id}`)
+              if (userResponse.ok) {
+                const userProfileData = await userResponse.json()
+                if (userProfileData.success && userProfileData.data) {
+                  // Update user with complete profile data, but preserve user_type from localStorage
+                  setUser({
+                    ...userData,
+                    name: userProfileData.data.name,
+                    full_name: userProfileData.data.name,
+                    user_type: userData.user_type // Preserve the user_type from localStorage
+                  })
+                }
+              }
+            }
+
+            const profileResponse = await fetch(`/api/check-photographer-profile?user_id=${userData.id}`)
+            const profileData = await profileResponse.json()
+            const isPhotographer = profileData.exists
+            setHasPhotographerProfile(isPhotographer)
+            
+            // Check for editor profile
+            const editorResponse = await fetch(`/api/editors/profile/${userData.id}`)
+            const editorData = await editorResponse.json()
+            const isEditor = editorData.success && editorData.editor_profile
+            setHasEditorProfile(isEditor)
+            
+            // Fetch user's bookings only if they are NOT a photographer or editor (client users only)
+            if (!isPhotographer && !isEditor) {
+              fetchUserBookings(userData.id)
+            }
+          }
         }
-      } else {
-        // If no userData, ensure we still set loading to false
+      } catch (error) {
+        console.error("Error initializing user:", error)
+        // Fallback to localStorage
+        const userData = getUserFromLocalStorage()
+        setUser(userData)
+      } finally {
+        console.log("=== END NAVBAR INIT DEBUG ===")
         setIsLoading(false)
       }
-      setIsLoading(false)
     }
     
     initializeUser()
@@ -188,20 +241,20 @@ const Navbar = () => {
                   <Link href="/search" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                     Book
                   </Link>
-                  {/* Show Dashboard or Connect With Us based on user profile */}
-                  {user && hasPhotographerProfile ? (
-                    <Link href="/cameraman-dashboard" className="text-[16px] text-white hover:opacity-70 transition-opacity">
-                      Cameraman Dashboard
-                    </Link>
-                  ) : user && hasEditorProfile ? (
+                  {/* Show Dashboard or Connect With Us based on user type */}
+                  {user && user.user_type === 'editor' ? (
                     <Link href="/editor-dashboard" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                       Editor Dashboard
                     </Link>
-                  ) : (
+                  ) : user && (user.user_type === 'cameraman' || user.user_type === 'elite') ? (
+                    <Link href="/cameraman-dashboard" className="text-[16px] text-white hover:opacity-70 transition-opacity">
+                      Cameraman Dashboard
+                    </Link>
+                  ) : user ? (
                     <Link href="/connect-with-us" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                       Connect With Us
                     </Link>
-                  )}
+                  ) : null}
                   <Link href="/business" className="text-[16px] text-white hover:opacity-70 transition-opacity">
                     Business
                   </Link>
@@ -444,20 +497,20 @@ const Navbar = () => {
                 <Link href="/search" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                   Book
                 </Link>
-                {/* Show Dashboard or Connect With Us based on user profile */}
-                {user && hasPhotographerProfile ? (
-                  <Link href="/cameraman-dashboard" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
-                    Cameraman Dashboard
-                  </Link>
-                ) : user && hasEditorProfile ? (
+                {/* Show Dashboard or Connect With Us based on user type */}
+                {user && user.user_type === 'editor' ? (
                   <Link href="/editor-dashboard" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                     Editor Dashboard
                   </Link>
-                ) : (
+                ) : user && (user.user_type === 'cameraman' || user.user_type === 'elite') ? (
+                  <Link href="/cameraman-dashboard" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
+                    Cameraman Dashboard
+                  </Link>
+                ) : user ? (
                   <Link href="/connect-with-us" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                     Connect With Us
                   </Link>
-                )}
+                ) : null}
                 <Link href="/business" className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900">
                   Business
                 </Link>
@@ -473,7 +526,7 @@ const Navbar = () => {
                   <>
                     {(hasPhotographerProfile || hasEditorProfile) && (
                       <Link
-                        href={hasPhotographerProfile ? "/cameraman-dashboard" : "/editor-dashboard"}
+                        href={user?.user_type === 'editor' ? "/editor-dashboard" : (user?.user_type === 'cameraman' || user?.user_type === 'elite') ? "/cameraman-dashboard" : "/connect-with-us"}
                         className="block px-3 py-2 text-[16px] text-white hover:bg-gray-900"
                       >
                         Dashboard
